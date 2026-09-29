@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0B0C10" />
+<title>どすんふわり · Dosun-Fuwari 气球与铁球</title>
+<meta name="description" content="Dosun-Fuwari（どすんふわり / dosun）：每个区一只气球一只铁球，气球上浮、铁球下沉。每一局都由穷尽计数器证唯一、由命名铅笔实测能推到底 —— 档位表的实测数字来自 js/engine/tiers.js 的 TIERS_MEASURED。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B0C10'/%3E%3Ccircle cx='11' cy='10' r='5' fill='%23F2F4F7'/%3E%3Ccircle cx='21' cy='23' r='5' fill='%234A5361'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="css/game.css" />
+</head>
+<body data-genre="dosun">
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>どすんふわり</h1>
+      <p class="sub">Dosun-Fuwari · Nikoli slug <code>dosun</code></p>
+    </div>
+    <div class="top-actions">
+      <button id="btn-sound" class="ghost" type="button" aria-pressed="false">音效 关</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-menu" class="view">
+      <div class="menu-hero">
+        <h2>粗线分出的每一个区里，恰好一只气球、一只铁球</h2>
+        <p>
+          气球（白圈）往上浮：它上面必须是<b>气球</b>、<b>题面黑格</b>，或者它就是这一段的最上面一格。
+          铁球（黑圈）往下沉：它下面必须是<b>铁球</b>、<b>题面黑格</b>，或者它就是这一段的最下面一格。
+          涂黑的格子不属于任何一个区。气球停在铁球下面<b>不算</b>浮起来。
+          <b>这里没有运气题</b>：每一局都由穷尽计数器证成唯一解，也被命名铅笔实测推得到底。
+        </p>
+      </div>
+
+      <div class="menu-cols">
+        <div class="col">
+          <h3 class="col-title">选一档</h3>
+          <div id="tier-list" class="tiers"></div>
+          <p class="menu-disclose" id="tier-disclose">
+            7×7 <b>不在菜单里</b>：观测段样本薄到不能当承诺（<code>tools/generator-probe.mjs</code> 的 OBS 段），
+            而 6×6 区8 之后出货率已掉到 35%，插一档读数更好的进来阶梯就不成阶梯了。
+          </p>
+        </div>
+
+        <div class="col">
+          <h3 class="col-title">这几条判据就是引擎里的那几条</h3>
+          <ol class="rules">
+            <li><b>R1 区</b>：每个区恰好 1 气球 1 铁球，区必须连通，黑格不属于任何区。</li>
+            <li><b>R2 浮</b>：气球上面（同段）是气球 / 黑格 / 段顶。</li>
+            <li><b>R3 沉</b>：铁球下面（同段）是铁球 / 黑格 / 段底。</li>
+          </ol>
+          <p class="rules-note">
+            页面上没有任何一条自己的判据 —— 胜负直接调 <code>js/engine/rules.js</code> 的
+            <code>check()</code>，"填满"和"填对"是两件事，只有后者会赢。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-game" class="view" hidden>
+      <div class="stage">
+        <div class="stage-head">
+          <span id="stat-name" class="puzzle-name">—</span>
+          <span id="stat-tier" class="chip"></span>
+          <span id="stat-seed" class="chip mono">seed —</span>
+          <span id="stat-time" class="chip mono">00:00</span>
+        </div>
+        <div id="board-wrap">
+          <canvas id="board" tabindex="0" role="img" aria-label="どすんふわり棋盘：点一格循环 未定→气球→铁球→钉空→未定"></canvas>
+          <div id="win-veil" hidden>
+            <div class="win-card">
+              <h3>每个区都有一只气球和一只铁球</h3>
+              <p id="win-meta"></p>
+              <p id="win-record" class="win-record"></p>
+              <div class="win-actions">
+                <button id="btn-again" class="primary" type="button">再来一局</button>
+                <button id="btn-menu-2" class="ghost" type="button">回选档</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p id="state-line" class="conflict-line" aria-live="polite"></p>
+      </div>
+
+      <aside class="panel">
+        <div class="digits" role="group" aria-label="摆这一格">
+          <button id="btn-w" class="place bal" type="button" aria-label="气球">气球</button>
+          <button id="btn-b" class="place ball" type="button" aria-label="铁球">铁球</button>
+          <button id="btn-e" class="place mark" type="button" aria-label="钉空">钉空</button>
+          <button id="btn-u" class="place none" type="button" aria-label="收回未定">未定</button>
+        </div>
+        <div class="acts">
+          <button id="btn-undo" class="ghost" type="button">撤销</button>
+          <button id="btn-new" class="ghost" type="button">换一局</button>
+          <button id="btn-clear" class="ghost" type="button">重摆</button>
+          <button id="btn-menu" class="ghost" type="button">回选档</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span>步数</span><b id="stat-moves" class="mono">0</b></div>
+          <div class="stat"><span>气球</span><b id="stat-balloons" class="mono">0/0</b></div>
+          <div class="stat"><span>铁球</span><b id="stat-balls" class="mono">0/0</b></div>
+          <div class="stat"><span>已定格</span><b id="stat-filled" class="mono">0/0</b></div>
+          <div class="stat"><span>区数</span><b id="stat-regions" class="mono">0</b></div>
+          <div class="stat"><span>违反条款</span><b id="stat-conflicts" class="mono">0</b></div>
+          <div class="stat"><span>出货实测</span><b id="stat-genms" class="mono">—</b></div>
+          <div class="stat"><span>档位读数</span><b id="stat-measured" class="mono">—</b></div>
+        </div>
+
+        <div class="legend">
+          <span><i class="sw sw-black"></i>题面黑格（不属于任何区）</span>
+          <span><i class="sw sw-gray"></i>空格未定</span>
+          <span><i class="sw sw-bal"></i>气球（上浮）</span>
+          <span><i class="sw sw-ball"></i>铁球（下沉）</span>
+          <span><i class="sw sw-mark"></i>钉空（这里不放球）</span>
+        </div>
+        <p class="keyhint"><b>点击/触屏</b> 循环 未定→气球→铁球→钉空 · <b>方向键</b> 移动 · <b>空格</b> 循环 · <b>W</b> 气球 · <b>B</b> 铁球 · <b>X</b> 钉空 · <b>退格</b> 收回未定 · <b>Z</b> 撤销</p>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>每局唯一解 · 每局可用命名铅笔推到底 · 菜单上的"实测 …"是 <code>js/engine/tiers.js</code> 的 TIERS_MEASURED 原值 —— 由 <code>tools/verify.sh</code> 在真实浏览器里逐条断言。</span>
+    <button id="btn-reset" class="link" type="button">清空存档</button>
+  </footer>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
