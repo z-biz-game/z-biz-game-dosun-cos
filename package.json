@@ -1,0 +1,27 @@
+{
+  "name": "z-biz-game-dosun-cos",
+  "version": "0.1.0",
+  "description": "どすんふわり Dosun-Fuwari — 每个区一只气球一只铁球：气球上浮、铁球下沉。构造式出题（铺球→长区→挪边界），每一局都由穷尽计数器证唯一、由命名铅笔实测能推到底。",
+  "type": "module",
+  "scripts": {
+    "check": "for f in js/engine/*.js tools/*.mjs; do node --check \"$f\" || exit 1; done && echo 'check OK'",
+    "rule": "node tools/rule-test.mjs",
+    "counter": "node tools/counter-test.mjs",
+    "pencil": "node tools/pencil-test.mjs",
+    "golden": "node tools/golden-test.mjs",
+    "probe": "node tools/generator-probe.mjs",
+    "test": "bash tools/verify.sh"
+  },
+  "keywords": [
+    "game",
+    "puzzle",
+    "dosun-fuwari",
+    "logic",
+    "deduction",
+    "no-guess",
+    "procedural",
+    "web"
+  ],
+  "author": "z-biz-game",
+  "license": "MIT"
+}
