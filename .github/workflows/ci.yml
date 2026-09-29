@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: syntax + engine guarantees
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No npm install: 零运行时依赖。为了"证明点什么"而往 CI 里塞浏览器或打包器，
+      # 这个仓就会开始因为网络抖动而红。
+      - name: Syntax check every source
+        run: |
+          for f in $(git ls-files 'js/*.js' 'js/*/*.js'); do node --check "$f" || exit 1; done
+          node --check server.cjs
+          for f in $(git ls-files 'tools/*.mjs' tools/scenarios.js tools/playtest.cjs); do node --check "$f" || exit 1; done
+
+      # 真正的承诺：判据 / 计数器 / 铅笔 / 官方 4×4 夹具 / 出题器台阶 —— 纯 node，不需要浏览器。
+      - name: Logic gates
+        run: npm test
+
+  # 真浏览器闸：headless Chrome + CDP，读 DOM 文本/几何、真事件与引擎读数，不读内部标志位。
+  # 独立 job、node 22：台架用的是 Node 22 才有的全局 WebSocket/fetch，在 20 上第一次 attach 就死。
+  browser:
+    name: real browser gate (both URL shapes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # verify.sh 自己起 server；根形态与 Pages 的 /z-biz-game-dosun-cos/ 前缀形态各跑同一套腿，
+      # 每条腿报出的断言条数逐条相同才算绿。
+      - name: Browser gate, both local URL shapes
+        env:
+          WD_TIMEOUT: 900
+        run: npm run verify
+
+      # 阴性自证：闸必须能被证明"会红"。种一条注定错的期望，必须 rc 非 0 且点名是哪条腿吃下的。
+      - name: Gate proves it can fail
+        env:
+          WD_TIMEOUT: 900
+        run: |
+          set +e
+          SELF=1 BROWSER=1 bash tools/verify.sh > _tmp-selftest.log 2>&1
+          rc=$?
+          set -e
+          echo "rc=$rc"
+          grep -E 'SELFTEST·|种下的错被' _tmp-selftest.log
+          [ "$rc" -ne 0 ] || { echo "SELFTEST 竟然全绿：这个闸证明不了自己会红"; exit 1; }
+          grep -q 'FAIL' _tmp-selftest.log || { echo "SELFTEST 红了但没有点名是哪条断言"; exit 1; }
