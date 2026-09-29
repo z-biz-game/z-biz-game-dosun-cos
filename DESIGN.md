@@ -141,15 +141,21 @@
 | `npm run pencil` | 命名规则铅笔 | 24 断言 | 每条规则单独可验、liar 不许响 |
 | `npm run golden` | 官方夹具 | 46 断言 | 页面/引擎/夹具三方同一份题面与答案 |
 | `npm run probe` | 出题台阶 | 41 断言 | liar=0、打架=0、反空转、贴回对表（`tools/generator-probe.mjs:72-105`） |
-| `npm test` | 上面五条串起来 | rc=0 | `tools/verify.sh:34` |
-| `npm run verify` | 真 Chrome + CDP，两种 URL 形态 | 193 × 2 断言，rc=0 | 条数逐腿相同（`tools/verify.sh:251`）、`exit $FAILED`（`:275`） |
-| `npm run selftest` | 阴性自证 | rc=1 | 四条腿各点名吃下一条 planted（`tools/verify.sh:257-265`） |
+| `npm test` | 上面五条串起来 | rc=0 | `tools/verify.sh:36` |
+| `npm run verify` | 真 Chrome + CDP，两种 URL 形态（CI），三种（本地带 `BASE_URL`） | 每种形态 193 断言，rc=0 | 条数逐腿、逐形态相同（`tools/verify.sh:261`）、`exit $FAILED`（`:289`） |
+| `npm run selftest` | 阴性自证 | rc=1 | 四条腿各点名吃下一条 planted（`tools/verify.sh:271-279`） |
 
 CI 里 `check`+`browser` 两个 job：逻辑闸跑 node 20，浏览器闸必须跑 node 22
 （台架用 Node 22 才有的全局 `WebSocket`/`fetch`，在 20 上第一次 attach 就死，
 `.github/workflows/ci.yml:43`）。CI 对阴性自证同时要求 `rc≠0` **和**日志里有 `FAIL`
 （`.github/workflows/ci.yml:63-64`）：**没点名的红不算红**。
 零运行时依赖是刻意的——为了"证明点什么"往 CI 里塞浏览器或打包器，这个仓就会开始因为网络抖动而红。
+
+线上那一份也只有线上才测得到：CI 里前两种形态全绿，证明的是这套代码在这两种挂载下对；
+Pages 部署完之后还要第三种形态——`BASE_URL=https://z-biz-game.github.io/z-biz-game-dosun-cos/`
+再跑一遍同一套腿（`tools/verify.sh:81` 把它并入 `SHAPES`，preflight 逐形态 curl 到
+`js/engine/rules.js`/`tiers.js` 才放行）。本轮 3 形态 × 4 条读数 = 12 个读数全齐、193/193/193。
+这一形态不能塞进 CI：部署没完成时它还不存在。
 
 ## 不承诺
 

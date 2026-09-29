@@ -3,6 +3,8 @@
 #
 #   bash tools/verify.sh                 # 默认：五道 node 逻辑闸（npm test 走的就是这一条，快且稳）
 #   BROWSER=1 bash tools/verify.sh       # 再加真浏览器闸：engine / gen / play 三条腿 × 两种 URL 形态
+#   BASE_URL=https://z-biz-game.github.io/z-biz-game-dosun-cos/ BROWSER=1 bash tools/verify.sh
+#                                       # 追加第三种形态：线上已部署站点（本地两种全绿不等于 Pages 上那份是对的）
 #   SELF=1 … BROWSER=1 bash tools/verify.sh   # 阴性自证：种一条注定错的期望，必须点名变红、rc 非 0
 #   LEGS="engine play" …                 # 只跑其中几条腿
 #
@@ -74,6 +76,9 @@ for i in $(seq 1 60); do
 done
 
 SHAPES=("http://127.0.0.1:$HTTP/" "http://127.0.0.1:$HTTP/z-biz-game-dosun-cos/")
+# 线上那一形态只能对着真站点测：前缀、缓存、Pages 发的 Content-Type 都不在本地 server 上。
+# 给了 BASE_URL 就追加进同一个循环、同一套腿，下面的条数对表按形态数逐条比，不多不少。
+if [ -n "${BASE_URL:-}" ]; then SHAPES+=("$BASE_URL"); fi
 
 # Pre-flight：证明接下来测的字节就是这个仓的 app，而不是同一端口上另一个仓的 index.html。
 for base in "${SHAPES[@]}"; do
@@ -233,22 +238,31 @@ for base in "${SHAPES[@]}"; do
   done
 done
 
-# 两种 URL 形态必须报出**同样条数**的断言：少一条就是那一形态上有东西没跑到。
+# 每个 URL 形态必须报出**同样条数**的断言：少一条就是那一形态上有东西没跑到。
+# 形态数是从 SHAPES 现取的，不是写死的 2 —— 加了线上形态却有腿没跑到，对表要能看见缺的那一列。
 echo
-echo "===== 两种 URL 形态的断言条数对表 ====="
-python3 -c "
+echo "===== ${#SHAPES[@]} 个 URL 形态的断言条数对表 ====="
+NSHAPES=${#SHAPES[@]} python3 -c "
 import os, collections
+n = int(os.environ['NSHAPES'])
 rows = collections.defaultdict(dict)
 for line in open(os.environ['COUNTS']):
-    shape, tag, n = line.split()
-    rows[tag][shape] = int(n)
+    shape, tag, k = line.split()
+    rows[tag][shape] = int(k)
+shapes = [str(i) for i in range(1, n + 1)]
 bad = 0
 for tag, d in sorted(rows.items()):
-    a, b = d.get('1'), d.get('2')
-    same = a is not None and a == b
-    print('  %-16s 形态1=%s 形态2=%s %s' % (tag, a, b, 'ok 相同' if same else 'RED 不同'))
+    vals = [d.get(s) for s in shapes]
+    same = all(v is not None for v in vals) and len(set(vals)) == 1
+    print('  %-16s %s %s' % (tag, ' '.join('形态%s=%s' % (s, d.get(s)) for s in shapes),
+                             'ok 相同' if same else 'RED 不齐'))
     bad += 0 if same else 1
-print('  两种形态各自跑满 %d 条 / %d 条' % (sum(v.get('1',0) for v in rows.values()), sum(v.get('2',0) for v in rows.values())))
+got = sum(len(v) for v in rows.values())
+print('  %d 个形态 × %d 条读数 = 应有 %d 个，实到 %d；各形态合计 %s'
+      % (n, len(rows), n * len(rows), got,
+         ' / '.join(str(sum(v.get(s, 0) for v in rows.values())) for s in shapes)))
+if not rows:
+    print('  RED 对表是空的：一条腿的读数都没落地'); bad += 1
 raise SystemExit(1 if bad else 0)
 " || FAILED=1
 

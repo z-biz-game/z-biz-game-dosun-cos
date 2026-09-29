@@ -35,14 +35,14 @@ npm run serve        # 零依赖静态服务 → http://127.0.0.1:5267/（packag
 
 ```bash
 npm run check        # → check OK（package.json:7 逐文件 node --check，含 server.cjs 与 tools）
-npm test             # → logic: PASS，rc=0（tools/verify.sh:34、:38）
-npm run verify       # → === ALL GREEN ===，rc=0（tools/verify.sh:275）
-npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:257-265）
+npm test             # → logic: PASS，rc=0（tools/verify.sh:36、:41）
+npm run verify       # → === ALL GREEN ===，rc=0（tools/verify.sh:289）
+npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:271-279）
 ```
 
 - **逻辑闸 `npm test`**：五条，本轮 **154 条断言全绿** —— rule-test 17（`tools/rule-test.mjs`）、
   counter-test 26、pencil-test 24、golden-test 46（官方 4×4 夹具）、generator-probe 41。
-  `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:37` 的 `browser: SKIP`），
+  `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:39` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
 - **出题台阶 `npm run probe`**：口径 `ARM=greedy MAXMUT=40 cap=400000 maxSol=400`，每档 20 次尝试、
   `SEED=1`。本轮合计 **7 档 · 造成 111 · 唯一 52 · 其中铅笔推满 52 · liar 0 · 打架 0**
@@ -51,8 +51,11 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
   再加一条防空转的配对断言——样本里必须真有没证成唯一的盘可验谎，本轮 111−52 = **59 张**
   （`tools/generator-probe.mjs:74`）。
 - **浏览器闸 `npm run verify`**：真 Chrome + CDP，读 DOM 文本/几何、真 `Input.dispatch*` 事件与引擎读数，
-  不读内部标志位。本轮两种 URL 形态各跑满 **193 条断言**，逐腿条数完全相同
-  （engine 21 / menu 39 / gen 69 / play 64），对表打印见 `tools/verify.sh:251`。
+  不读内部标志位。本轮跑了**三种 URL 形态**，各 **193 条断言**、逐腿条数完全相同
+  （engine 21 / menu 39 / gen 69 / play 64），对表打印见 `tools/verify.sh:261`：
+  本地根 `/`、本地 Pages 前缀形态 `/z-biz-game-dosun-cos/`，以及 `BASE_URL=…` 追加进来的**已部署站点**
+  （`tools/verify.sh:81` 把它并入同一个形态循环，形态数由 `${#SHAPES[@]}` 现取，不是写死的 2）。
+  CI 只跑前两种（`npm run verify` 不带 `BASE_URL`）——第三种要等部署完成才存在，只能在本地对线上跑。
   - `engine` 腿在页面台面里重放官方 4×4 例题，并断言页面拿到的是**引擎模块本身**
     （`tools/scenarios.js:57-58`）——胜负只由 `js/engine/rules.js` 的 R1/R2/R3 判，UI 没有第二套规则。
   - `menu` 腿把选档页上打印的 8 个数字逐个解析出来，与 `TIERS_MEASURED` 的 8 个字段比相等
@@ -64,7 +67,7 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 - **闸必须能红**：`npm run selftest` 时 `scenarios.js` 与 `playtest.cjs` 各往每一条腿塞一条注定错的
   `1==2`，本轮四条腿（engine/menu/gen/play）各红一次、`rc=1`。CI 同时要求 `rc≠0` **和**日志里有 `FAIL`
   （`.github/workflows/ci.yml:63`、`.github/workflows/ci.yml:64`）：一条没点名的红不算红。
-  另一侧，只红不点名到腿也不行（`tools/verify.sh:265`：planted 腿数 < 4 就判失败）。
+  另一侧，只红不点名到腿也不行（`tools/verify.sh:279`：planted 腿数 < 4 就判失败）。
 
 ## 七档菜单：印出来的数字与本轮实测的读数
 
