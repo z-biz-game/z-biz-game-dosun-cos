@@ -102,6 +102,29 @@ if (fs.existsSync(swPath)) {
   const sw = fs.readFileSync(swPath, 'utf8');
   const cacheLine = (sw.match(/(VERSION|CACHE)\s*=\s*[^\n]*/g) || []).join(' ; ');
   (/(VERSION|CACHE)\s*=\s*['"][^'"]*v\d/i.test(sw) ? ok : bad)('sw::cache 名带版本号', cacheLine);
+  // 离线壳的两条硬账：列出的每条都得在盘上（addAll 遇到一个 404 就整批 reject，
+  // install 直接失败），并且 main.js 的模块 import 闭包必须被壳覆盖
+  // —— 否则断网首载是"装上了壳、跑到一半白屏"。
+  const shellBody = (sw.match(/const SHELL = \[([\s\S]*?)\];/) || [, '', ''])[1];
+  const shell = [...shellBody.matchAll(/'([^']+)'/g)].map((x) => x[1]).filter((p) => p !== './');
+  const missing = shell.filter((p) => !fs.existsSync(path.join(ROOT, p)));
+  (shell.length && !missing.length ? ok : bad)(`sw::SHELL ${shell.length} 条全在盘上`,
+    missing.length ? `缺失 ${missing.join('、')}` : `${shell.length} 条`);
+  const seen = new Set();
+  const queue = ['js/main.js'];
+  while (queue.length) {
+    const rel = queue.pop();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const abs = path.join(ROOT, rel);
+    if (!fs.existsSync(abs)) continue;
+    for (const m of fs.readFileSync(abs, 'utf8').matchAll(/from\s+'(\.[^']+)'/g)) {
+      queue.push(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1])));
+    }
+  }
+  const uncovered = [...seen].filter((rel) => !shell.includes('./' + rel));
+  (uncovered.length === 0 ? ok : bad)(`sw::壳覆盖 main.js 的 ${seen.size} 个模块`,
+    uncovered.length ? `未预热 ${uncovered.join('、')}` : `${seen.size} 个模块全在 SHELL 里`);
   // 注册点单独一个文件：那里必须先看 protocol，否则 file:// 双击打开就是一页未捕获异常。
   const reg = fs.existsSync(path.join(ROOT, 'js/pwa-register.js')) ? fs.readFileSync(path.join(ROOT, 'js/pwa-register.js'), 'utf8') : '';
   (/serviceWorker\.register/.test(reg) && /protocol[\s\S]{0,200}?!==\s*['"]https?:['"]/.test(reg) && /catch\s*\(/.test(reg)

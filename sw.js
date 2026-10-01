@@ -5,10 +5,13 @@
 // js/css 永久钉死在旧版 —— 出新 HTML 配旧 JS 的鬼状态，页面看着"装上了"其实跑的是上一次的代码。
 // 这里每个同源 GET 都先问网络，命中就顺手回填；只有网络失败（离线/断网）才读缓存。
 // 缓存名单独带版本号：改协议时把 VERSION 提一位，activate 里清掉不属于本版本的旧壳。
-const VERSION = 'dosun-v0.3.0';
+const VERSION = 'dosun-v0.4.0';
 const CACHE = 'dosun-shell-' + VERSION;
-const SHELL = ['./', './index.html', './css/game.css', './js/main.js', './manifest.webmanifest',
-  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
+const SHELL = ['./', './index.html', './css/game.css', './js/main.js', './js/save.js', './js/audio.js',
+  './js/render/anim.js', './js/render/board.js', './js/ui/game.js', './manifest.webmanifest',
+  './js/engine/rng.js', './js/engine/tiers.js', './js/engine/generate.js', './js/engine/pencil.js',
+  './js/engine/rules.js', './js/engine/counter.js', './js/engine/official.js',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon-32.png',
   './assets/textures/paper-256.png', './assets/sprites/pieces-128.png'];
 
 self.addEventListener('install', e => {
