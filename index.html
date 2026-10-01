@@ -29,8 +29,10 @@
       <h1>どすんふわり</h1>
       <p class="sub">Dosun-Fuwari · Nikoli slug <code>dosun</code></p>
     </div>
-    <div class="top-actions">
-      <button id="btn-sound" class="ghost" type="button" aria-pressed="false">音效 关</button>
+    <div class="top-actions hud">
+      <button id="btn-sound" class="ghost" type="button" aria-pressed="false" aria-label="音效开关（M）">音效 关</button>
+      <button id="btn-full" class="ghost" type="button" aria-pressed="false" aria-label="全屏（F）">全屏</button>
+      <button id="btn-help" class="ghost" type="button" aria-label="玩法说明（H）">玩法</button>
     </div>
   </header>
 
@@ -50,6 +52,7 @@
         <div class="col">
           <h3 class="col-title">选一档</h3>
           <div id="tier-list" class="tiers"></div>
+          <button id="btn-resume" class="primary" type="button" hidden>继续上一局</button>
           <p class="menu-disclose" id="tier-disclose">
             7×7 <b>不在菜单里</b>：观测段样本薄到不能当承诺（<code>tools/generator-probe.mjs</code> 的 OBS 段），
             而 6×6 区8 之后出货率已掉到 35%，插一档读数更好的进来阶梯就不成阶梯了。
@@ -81,6 +84,15 @@
         </div>
         <div id="board-wrap">
           <canvas id="board" tabindex="0" role="img" aria-label="どすんふわり棋盘：点一格循环 未定→气球→铁球→钉空→未定"></canvas>
+          <div id="pause-veil" hidden>
+            <div class="veil-card">
+              <p id="pause-mark">‖ 暂停</p>
+              <p>仿真与计时都停在这里：累加器不再吃帧时间，回来不会补跑。</p>
+              <div class="veil-actions">
+                <button id="btn-resume-play" class="primary" type="button">继续（P）</button>
+              </div>
+            </div>
+          </div>
           <div id="win-veil" hidden>
             <div class="win-card">
               <h3>每个区都有一只气球和一只铁球</h3>
@@ -104,6 +116,8 @@
           <button id="btn-u" class="place none" type="button" aria-label="收回未定">未定</button>
         </div>
         <div class="acts">
+          <button id="btn-pause" class="ghost" type="button" aria-pressed="false">暂停</button>
+          <button id="btn-hint" class="ghost" type="button">提示</button>
           <button id="btn-undo" class="ghost" type="button">撤销</button>
           <button id="btn-new" class="ghost" type="button">换一局</button>
           <button id="btn-clear" class="ghost" type="button">重摆</button>
@@ -128,10 +142,32 @@
           <span><i class="sw sw-ball"></i>铁球（下沉）</span>
           <span><i class="sw sw-mark"></i>钉空（这里不放球）</span>
         </div>
-        <p class="keyhint"><b>点击/触屏</b> 循环 未定→气球→铁球→钉空 · <b>方向键</b> 移动 · <b>空格</b> 循环 · <b>W</b> 气球 · <b>B</b> 铁球 · <b>X</b> 钉空 · <b>退格</b> 收回未定 · <b>Z</b> 撤销</p>
+        <p class="keyhint"><b>点击/触屏</b> 循环 未定→气球→铁球→钉空 · <b>方向键</b> 移动 · <b>空格</b> 循环 · <b>W</b> 气球 · <b>B</b> 铁球 · <b>X</b> 钉空 · <b>退格</b> 收回未定 · <b>Z</b> 撤销 · <b>P</b> 暂停 · <b>R</b> 换一局 · <b>M</b> 静音 · <b>F</b> 全屏 · <b>H</b> 玩法</p>
       </aside>
     </section>
   </main>
+
+  <div id="help-veil" hidden role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="veil-card">
+      <h3 id="help-title">玩法说明 · 三条判据就是引擎里的那三条</h3>
+      <ol>
+        <li><b>R1 区</b>：粗线分出的每个区恰好一只气球、一只铁球；涂黑的格子不属于任何区。</li>
+        <li><b>R2 浮</b>：气球往上浮 —— 它上面（同一竖段）必须是气球、题面黑格，或它就是段顶。</li>
+        <li><b>R3 沉</b>：铁球往下沉 —— 它下面（同一竖段）必须是铁球、题面黑格，或它就是段底。</li>
+      </ol>
+      <p>
+        点一格循环 <span class="kbd">未定→气球→铁球→钉空</span>；方向键移动光标，
+        <span class="kbd">W</span>/<span class="kbd">B</span>/<span class="kbd">X</span> 直接摆，
+        <span class="kbd">Z</span> 撤销，<span class="kbd">R</span> 换一局，
+        <span class="kbd">P</span> 暂停，<span class="kbd">M</span> 静音，<span class="kbd">F</span> 全屏，
+        <span class="kbd">Enter</span>/<span class="kbd">空格</span> 在菜单里开局。
+      </p>
+      <p id="help-facts" class="mono"></p>
+      <div class="veil-actions">
+        <button id="btn-help-close" class="primary" type="button">知道了（Esc）</button>
+      </div>
+    </div>
+  </div>
 
   <footer class="foot">
     <span>每局唯一解 · 每局可用命名铅笔推到底 · 菜单上的"实测 …"是 <code>js/engine/tiers.js</code> 的 TIERS_MEASURED 原值 —— 由 <code>tools/verify.sh</code> 在真实浏览器里逐条断言。</span>

@@ -7,8 +7,13 @@
 // 的格子涂红，不新增任何判断。
 
 import { W, B, E } from '../engine/rules.js';
+import { PARTICLE_LIFE } from './anim.js';
 
-export const Cell = { min: 34, max: 88 };
+// 44 CSS px 是触摸下限：34px 的格宽在桌面上没问题，在手机上就是"点 A 打 B"。
+export const Cell = { min: 44, max: 88 };
+export const SPRITE = { pieces: 'assets/sprites/pieces-128.png', paper: 'assets/textures/paper-256.png' };
+/** 值 → sprite 帧号（横排 3 帧：气球 / 铁球 / 钉空）。 */
+export const frameOf = v => (v === W ? 0 : v === B ? 1 : v === E ? 2 : -1);
 const INK = {
   bg: '#10131a',
   cell: '#232837',
@@ -24,7 +29,17 @@ const INK = {
   ballRing: '#cfd6e4',
   mark: '#6d7789',
   bad: '#ff6b6b',
+  sparkBalloon: '#dfe6f2',
+  sparkBall: '#7d8798',
 };
+
+/** 相对当前文档解析：Pages 把仓挂在 /z-biz-game-dosun-cos/ 前缀下，写死 '/assets/…' 会 404。 */
+export function assetUrl(rel) {
+  if (typeof document !== 'undefined' && document.baseURI) {
+    try { return new URL(rel, document.baseURI).href; } catch { return rel; }
+  }
+  return rel;
+}
 
 export function layoutFor(R, C, availW, availH) {
   const pad = 12;
@@ -39,6 +54,25 @@ export class BoardView {
     this.ctx = canvas.getContext('2d');
     this.geo = { cell: 0, x: 0, y: 0, w: 0, h: 0, dpr: 1 };
     this.game = null;
+    /** 位图资产：解不出来的一直是 null，draw() 走矢量回落 —— 页面不会因为一张图而白屏 */
+    this.art = { pieces: null, paper: null, pattern: null };
+    this.loadArt();
+  }
+
+  /** 加载仓内现画的 sprite 表与纸纹（assets/gen/make_art.py 的产物）。 */
+  loadArt() {
+    if (typeof Image === 'undefined') return this.art;
+    const pieces = new Image();
+    pieces.onload = () => { this.art.pieces = pieces; this.dirty = true; };
+    pieces.src = assetUrl(SPRITE.pieces);
+    const paper = new Image();
+    paper.onload = () => {
+      this.art.paper = paper;
+      this.art.pattern = this.ctx.createPattern(paper, 'repeat');
+      this.dirty = true;
+    };
+    paper.src = assetUrl(SPRITE.paper);
+    return this.art;
   }
 
   // 背板按设备像素铺，绘制留在 CSS 像素：顶部一次 ctx.scale，Retina 上字与圈都清楚，
@@ -69,8 +103,12 @@ export class BoardView {
     const { cell, x, y } = this.geo;
     const g = this.game;
     if (!cell || !g) return -1;
-    const px = clientX - rect.left - x;
-    const py = clientY - rect.top - y;
+    // CSS 缩放换算：canvas 的 rect 宽度与 geo.w 不一定相等（窄屏上被 CSS 收窄过），
+    // 不除这个比例，手机上就是"点 A 打 B"。
+    const sx = rect.width > 0 && this.geo.w ? rect.width / this.geo.w : 1;
+    const sy = rect.height > 0 && this.geo.h ? rect.height / this.geo.h : 1;
+    const px = (clientX - rect.left) / sx - x;
+    const py = (clientY - rect.top) / sy - y;
     if (px < 0 || py < 0) return -1;
     const c = Math.floor(px / cell);
     const r = Math.floor(py / cell);
@@ -93,7 +131,7 @@ export class BoardView {
     return s;
   }
 
-  draw(game, { pulse = null } = {}) {
+  draw(game, sim = null, { pulse = null } = {}) {
     this.game = game;
     const { ctx, geo } = this;
     const { cell, x: ox, y: oy } = geo;
@@ -103,6 +141,14 @@ export class BoardView {
     ctx.clearRect(0, 0, geo.w, geo.h);
     ctx.fillStyle = INK.bg;
     ctx.fillRect(0, 0, geo.w, geo.h);
+    if (this.art.pattern) {
+      // 纸纹只当质感：alpha 压到 0.5 以下，区底色的深浅差仍然读得出来
+      ctx.save();
+      ctx.globalAlpha = 0.42;
+      ctx.fillStyle = this.art.pattern;
+      ctx.fillRect(0, 0, geo.w, geo.h);
+      ctx.restore();
+    }
 
     // 1) 格子底色：题面黑格 / 区底色（区号决定，和答案无关）
     for (const i of B_.cells) {
@@ -156,14 +202,29 @@ export class BoardView {
     }
     ctx.stroke();
 
-    // 4) 摆上去的东西
+    // 4) 摆上去的东西：有位图走位图（assets/sprites/pieces-128.png 的三帧），
+    //    位图还没解出来（首帧、或 file:// 下被拒）走同一套几何的矢量回落。
+    const sheet = this.art.pieces;
+    if (sheet) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    }
     for (const i of B_.cells) {
       const v = game.st.get(i);
       if (v === undefined || v === null) continue;
       const rect = this.cellRect(i);
+      // 气球随定步长仿真轻浮，铁球只在落定后的余震里晃一下；reduceMotion ⇒ 两个都是 0。
+      const dy = sim ? (v === W ? -sim.bob(i) * cell : sim.shake(i) * cell) : 0;
       const cx = rect.x + cell / 2;
-      const cy = rect.y + cell / 2;
+      const cy = rect.y + cell / 2 + dy;
       const rad = cell * 0.31;
+      const frame = sheet ? frameOf(v) : -1;
+      if (frame >= 0) {
+        const fw = sheet.width / 3;
+        const size = cell * 0.9;
+        ctx.drawImage(sheet, frame * fw, 0, fw, sheet.height, cx - size / 2, cy - size / 2, size, size);
+        continue;
+      }
       if (v === W) {
         ctx.fillStyle = INK.balloon;
         ctx.beginPath(); ctx.arc(cx, cy - cell * 0.04, rad, 0, Math.PI * 2); ctx.fill();
@@ -187,6 +248,21 @@ export class BoardView {
     for (const i of bad) {
       const rect = this.cellRect(i);
       ctx.strokeRect(rect.x + 1.5, rect.y + 1.5, cell - 3, cell - 3);
+    }
+
+    // 5.5) 落子碎屑：位置由 js/render/anim.js 的定步长积分给，这里只按 life 淡出
+    if (sim && sim.particles.length) {
+      for (const p of sim.particles) {
+        const rect = this.cellRect(p.cell);
+        const a = Math.max(0, Math.min(1, p.life / PARTICLE_LIFE));
+        const size = cell * (0.06 + 0.05 * a);
+        ctx.fillStyle = (p.kind === 'ball' ? INK.sparkBall : INK.sparkBalloon) + Math.round(a * 210).toString(16).padStart(2, '0');
+        ctx.save();
+        ctx.translate(rect.x + cell / 2 + p.x * cell, rect.y + cell / 2 + p.y * cell);
+        ctx.rotate(p.spin);
+        ctx.fillRect(-size / 2, -size / 2, size, size);
+        ctx.restore();
+      }
     }
 
     // 6) 光标
