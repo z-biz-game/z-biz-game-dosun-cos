@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 一条命令跑全部闸。每道闸单独退码，红要能点名是哪道闸（各 tool 自己印 FAIL <gate> :: …）。
 #
-#   bash tools/verify.sh                 # 默认：五道 node 逻辑闸（npm test 走的就是这一条，快且稳）
+#   bash tools/verify.sh                 # 默认：六道 node 逻辑闸（npm test 走的就是这一条，快且稳）
 #   BROWSER=1 bash tools/verify.sh       # 再加真浏览器闸：engine / gen / play 三条腿 × 两种 URL 形态
 #   BASE_URL=https://z-biz-game.github.io/z-biz-game-dosun-cos/ BROWSER=1 bash tools/verify.sh
 #                                       # 追加第三种形态：线上已部署站点（本地两种全绿不等于 Pages 上那份是对的）
@@ -21,7 +21,7 @@
 #  * 端口 5267 与 CDP 9367 是本仓自己的；开工前还要 pre-flight 证明服务中的字节就是这个仓的 app。
 set -u
 cd "$(dirname "$0")/.."
-GATES="rule-test counter-test pencil-test golden-test generator-probe"
+GATES="rule-test counter-test pencil-test golden-test generator-probe assets-test"
 [ $# -gt 0 ] && GATES="$*"
 rc=0
 for gate in $GATES; do

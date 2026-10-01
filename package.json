@@ -10,6 +10,8 @@
     "pencil": "node tools/pencil-test.mjs",
     "golden": "node tools/golden-test.mjs",
     "probe": "node tools/generator-probe.mjs",
+    "assets": "node tools/assets-test.mjs",
+    "art": "python3 assets/gen/make_art.py",
     "serve": "node server.cjs 5267",
     "test": "bash tools/verify.sh",
     "verify": "BROWSER=1 bash tools/verify.sh",

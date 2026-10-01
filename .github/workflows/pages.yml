@@ -22,11 +22,13 @@ jobs:
       # No bundler and no npm install: the engine is plain ES modules loaded straight from
       # index.html, so the site is a file copy. Only these three paths are reachable — listing
       # them instead of `path: .` keeps server.cjs, tools/ and .github out of the public artifact.
+      # 位图/manifest/sw 必须在名单里：漏一个，线上形态（BASE_URL）就拿到 404，
+      # 而本地两种形态全绿 —— 那种"装得上、离线打不开"的红只有清单对表能抓到。
       - name: Assemble static site
         run: |
           mkdir _site
-          cp index.html _site/
-          cp -r css js _site/
+          cp index.html manifest.webmanifest sw.js _site/
+          cp -r css js icons og assets _site/
       - uses: actions/configure-pages@v5
         with:
           use-actions-v4-deploy-action: true

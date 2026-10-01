@@ -1,0 +1,25 @@
+{
+  "name": "どすんふわり Dosun-Fuwari · 气球与铁球",
+  "short_name": "どすんふわり",
+  "description": "每个区恰好一只气球、一只铁球：气球上浮、铁球下沉。每一局都由穷尽计数器证唯一解，命名铅笔实测推得到底。",
+  "id": "z-biz-game-dosun-cos",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "theme_color": "#0B0C10",
+  "background_color": "#0B0C10",
+  "categories": ["games", "puzzle"],
+  "icons": [
+    { "src": "icons/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "og/og-card.png", "sizes": "1200x630", "type": "image/png", "form_factor": "wide", "label": "墨盘上的气球与铁球" }
+  ]
+}

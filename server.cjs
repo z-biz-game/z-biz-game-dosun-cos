@@ -22,6 +22,8 @@ const TYPES = {
   '.cjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  // manifest 走 octet-stream 时 Chrome 直接不认这份清单：可安装判据在盘上有文件也不成立。
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
