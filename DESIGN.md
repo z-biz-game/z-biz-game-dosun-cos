@@ -151,7 +151,7 @@
 
 判据、计数器、铅笔、出题台阶都有命令去复测，**散文没有**——它可以一直抄下去，直到某天代码改了字、
 文档还在引用上一个世界的数。本仓的 README 里有一整类这样的数：七档表、端口、计数器预算、CI 到底跑了
-哪几条门禁、`SAMPLE` 旋钮、每条闸本轮报出的断言条数。所以有了第六道闸 `tools/doctest.mjs`，规矩和
+哪几条门禁、`SAMPLE` 旋钮、每条闸本轮报出的断言条数。所以有了压轴那道闸 `tools/doctest.mjs`，规矩和
 贴回对表那条线一样：
 
 - **只比现值，不复测读数**：ms、出货率、节点数这类本机测量在这里只作为"文档写的数与代码里的界"
@@ -162,6 +162,9 @@
 - **本闸自己的条数也被钉住**（`D14c`）：加一条断言、删一条解析器，README 那句"合计 N 条"就过期了，
   而那份文档正是被这个文件读的——所以那一个数由本轮 `rows` 现算，不随调用入口漂（`D19` 在无
   manifest 的那条路里改成静态断言，为的就是两种入口数出同一个条数）。
+- **全绿不等于闸会红**：`tools/sabotage.mjs`（`npm run sabotage`，`GATES` 里排在 doctest 前一条）把每一类谎
+  各写回一份临时副本再跑一次 doctest，断言它必须**点名**变红；某一把刀没把闸弄红，整条台账判红并点名是哪一把。
+  刀谱就是 `README.md` 最后一节那张台账表，脚本从表里读刀；真文件一字不改（逐文件对 sha256）、副本跑完删净。
 - **doctest 排在 `GATES` 最后**（`tools/verify.sh:31`）：它读前面每条闸本轮自己打印的条数
   （manifest 由 `tools/verify.sh:44-48` 现写），所以它必须最后跑。
 - **浏览器腿的那四个数**不在逻辑段里比（逻辑段跑不到浏览器），由 `npm run verify` 在条数对表之后
@@ -178,15 +181,16 @@
 | `npm run pencil` | 命名规则铅笔 | 24 断言 | 每条规则单独可验、liar 不许响 |
 | `npm run golden` | 官方夹具 | 46 断言 | 页面/引擎/夹具三方同一份题面与答案 |
 | `npm run probe` | 出题台阶 | 42 断言 | liar=0、打架=0、反空转、贴回对表（`tools/generator-probe.mjs:73-109`） |
-| `npm run doctest` | 文档对回代码 | 60 断言 | 解析不到就红；名单/形状/现值只有一份（`tools/doctest.mjs`） |
-| `npm test` | 上面六条串起来，doctest 压轴 | rc=0 | `tools/verify.sh:31`、`:57` |
+| `npm run doctest` | 文档对回代码 | 61 断言 | 解析不到就红；名单/形状/现值只有一份（`tools/doctest.mjs`） |
+| `npm run sabotage` | 破坏试验台账（刀只打在临时副本） | 13 断言 | 每一把刀都必须把 doctest 弄红并点名，没红就整条判红（`tools/sabotage.mjs`） |
+| `npm test` | 上面七条串起来，doctest 压轴 | rc=0 | `tools/verify.sh:31`、`:57` |
 | `npm run verify` | 真 Chrome + CDP，两种 URL 形态（CI），三种（本地带 `BASE_URL`） | 每种形态 224 断言，rc=0 | 条数逐腿、逐形态相同（`tools/verify.sh:303`）、`exit $FAILED`（`:399`） |
 | `npm run selftest` | 阴性自证 | rc=1 | 四条腿各点名吃下一条 planted（`tools/verify.sh:368-395`） |
 
 CI 里 `check`+`browser` 两个 job：逻辑闸跑 node 20，浏览器闸必须跑 node 22
 （台架用 Node 22 才有的全局 `WebSocket`/`fetch`，在 20 上第一次 attach 就死，
-`.github/workflows/ci.yml:41`）。CI 对阴性自证同时要求 `rc≠0` **和**日志里有 `FAIL`
-（`.github/workflows/ci.yml:62-63`）：**没点名的红不算红**。这两条 CI 覆盖关系本身也被断言——
+`.github/workflows/ci.yml:47`）。CI 对阴性自证同时要求 `rc≠0` **和**日志里有 `FAIL`
+（`.github/workflows/ci.yml:68-69`）：**没点名的红不算红**。这两条 CI 覆盖关系本身也被断言——
 `README.md` 那张覆盖表的每一行都由 `tools/doctest.mjs` 的 `D6` 拿回 `.github/workflows/ci.yml`
 的 job 块里找过，找不到就红。零运行时依赖是刻意的——为了"证明点什么"往 CI 里塞浏览器或打包器，
 这个仓就会开始因为网络抖动而红。

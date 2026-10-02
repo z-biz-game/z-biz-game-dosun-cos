@@ -14,7 +14,8 @@
     "serve": "node server.cjs 5273",
     "test": "bash tools/verify.sh",
     "verify": "BROWSER=1 bash tools/verify.sh",
-    "selftest": "SELF=1 BROWSER=1 bash tools/verify.sh"
+    "selftest": "SELF=1 BROWSER=1 bash tools/verify.sh",
+    "sabotage": "node tools/sabotage.mjs"
   },
   "keywords": [
     "game",

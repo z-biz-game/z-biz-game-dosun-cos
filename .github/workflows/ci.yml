@@ -29,6 +29,12 @@ jobs:
       - name: Logic gates
         run: npm test
 
+      # 破坏试验台账：`npm test` 的名单里已经有它（GATES 的倒数第二条），这一步单独点出来，
+      # 为的是"doctest 不是空转"这件事在 CI 里有自己的一个步骤名，README 的覆盖表也拿它对的回。
+      # 本地走的是同一条命令（npm run sabotage / npm test 里的同一条闸），CI 没有只自己才有的门。
+      - name: Sabotage ledger proves doctest can go red
+        run: npm run sabotage
+
   # 真浏览器闸：headless Chrome + CDP，读 DOM 文本/几何、真事件与引擎读数，不读内部标志位。
   # 独立 job、node 22：台架用的是 Node 22 才有的全局 WebSocket/fetch，在 20 上第一次 attach 就死。
   browser:

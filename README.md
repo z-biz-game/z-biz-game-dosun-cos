@@ -36,9 +36,12 @@ npm run serve        # 零依赖静态服务 → http://127.0.0.1:5273/（packag
 ## 验证：四条命令与它们本轮的读数
 
 下面每一个数都是本仓本轮（2026-10-02）跑出来的，括号里是打印它的那行代码。
-**散文不再靠人抄**：第六道逻辑闸 `tools/doctest.mjs`（`npm run doctest`）把这一节和 `DESIGN.md` 里的
+**散文不再靠人抄**：压轴那道逻辑闸 `tools/doctest.mjs`（`npm run doctest`）把这一节和 `DESIGN.md` 里的
 每一个"现值"对回代码——档位表、端口、计数器预算、CI 门禁名单、`SAMPLE` 旋钮、每条闸本轮自己报出的
-断言条数。正则解析不到东西同样算红（"0 行"不是绿灯，见 `tools/doctest.mjs:89` 的 `D1a`）。
+断言条数。正则解析不到东西同样算红（"0 行"不是绿灯，见 `tools/doctest.mjs:89` 的 `D1a`）。它自己也被这条规矩量着——
+覆盖表多一行，它就多一条断言，那一个数由本轮现算（`D14c`）。
+**它报全绿只说明这一轮没有东西坏，没说这把闸会不会红**：`tools/sabotage.mjs`（`npm run sabotage`）把每一类谎
+各写回一份临时副本再跑一次 doctest，断言它必须点名变红——刀谱写在下面最后一节那张台账表里，任何人 clone 下来都能复跑。
 
 ```bash
 npm run check        # → check OK（package.json:7 逐文件 node --check，含 server.cjs 与 tools）
@@ -47,11 +50,11 @@ npm run verify       # → === ALL GREEN ===（tools/verify.sh:398），rc=0（�
 npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:368-395）
 ```
 
-- **逻辑闸 `npm test`**：六道，名单只有一份——`tools/verify.sh:31` 的 `GATES`，`doctest` 排在**最后**
+- **逻辑闸 `npm test`**：七道，名单只有一份——`tools/verify.sh:31` 的 `GATES`，`doctest` 排在**最后**
   是刻意的：它读前面每条闸本轮自己打印的条数（`tools/verify.sh:44-48` 把每条闸的 stdout 落到
   `_tmp-verify-logic/<gate>.log` 并写进 `_tmp-verify-logic/gate-rows.txt`）。
-  逻辑闸本轮合计 215 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 doctest 60
-  那一句里的六个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`），**不是手抄的**。
+  逻辑闸本轮合计 229 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 13 doctest 61
+  那一句里的七个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`；doctest 自己那一个由 `D14c` 对），**不是手抄的**。
   `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:60` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
 - **出题台阶 `npm run probe`**：口径 `ARM=greedy MAXMUT=40 cap=400000 maxSol=400`，每档 20 次尝试、
@@ -85,7 +88,7 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
     （判据 `errs ≠ 0` 就不给过关），只有官方答案被真点击摆出来才触发胜利。
 - **闸必须能红**：`npm run selftest` 时 `scenarios.js` 与 `playtest.cjs` 各往每一条腿塞一条注定错的
   `1==2`，本轮四条腿（engine/menu/gen/play）各红一次、`rc=1`。CI 同时要求 `rc≠0` **和**日志里有 `FAIL`
-  （`.github/workflows/ci.yml:62`、`:63`）：一条没点名的红不算红。
+  （`.github/workflows/ci.yml:68`、`:69`）：一条没点名的红不算红。
   另一侧，只红不点名到腿也不行（`tools/verify.sh:389-391`：planted 腿数少于名单长度就判失败）。
 
 ## CI 覆盖表：哪条命令在哪个 job 里被跑
@@ -96,7 +99,8 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 | 命令 | job | CI 里的步骤名 | 守住什么 |
 | --- | --- | --- | --- |
 | `npm run check` | check | `Syntax check every source` | 每个源文件 parse 得过 |
-| `npm test` | check | `Logic gates` | 六道逻辑闸（含文档对表） |
+| `npm test` | check | `Logic gates` | 七道逻辑闸（含文档对表与破坏试验台账） |
+| `npm run sabotage` | check | `Sabotage ledger proves doctest can go red` | 台账每一把刀都必须把 doctest 弄红 |
 | `npm run verify` | browser | `Browser gate, both local URL shapes` | 两种 URL 形态 × 三条腿 |
 | `npm run selftest` | browser | `Gate proves it can fail` | 闸必须能红，且 rc≠0 与 FAIL 同时成立 |
 
@@ -136,3 +140,32 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 观测段上照设 liar / 打架两条红线（`:144`、`:145`），但**出货率与推满率故意不设红线**——
 哪天 7×7 推得满是进步，不该让闸变红。表里没有 7×7 那一行：不进菜单的两条理由写在 `js/engine/tiers.js:25-27`，
 想上档要先做什么写在 `:29`。
+
+## 破坏试验台账：doctest 不是空转
+
+`tools/doctest.mjs` 报全绿，说明的是**这一轮没有东西坏**，没说**这把闸会不会红**。
+`tools/sabotage.mjs`（`npm run sabotage`，也在 `npm test` 的 `GATES` 名单里、`doctest` 之前一条）补的就是这一句：
+把每一类谎各写回一份临时副本、重跑 doctest，断言它**必须**点名变红；任何一把刀没把闸弄红，整条台账判红并点名是哪一把。
+下面这张表就是刀谱——`tools/sabotage.mjs` 从这些 `| K… |` 行里读刀（文档改了，跑的就是改后的那一版），
+每行末尾那一个 rc 是脚本读回来的退出码，不是抄的。
+
+- **刀只打在临时副本里**：仓中的真文件一个字节都不改，也不 `git stash` / `git checkout` / `git restore`
+  （共享工作区，别的车道在同一个 workspace 里跑）；跑完逐文件对 sha256、把副本删净——这两件事本身就是台账的断言。
+- **针必须唯一命中**：命中 0 次或多于 1 次直接 ERROR 停下。台账那一行自己会把针抄一遍，所以数命中的时候
+  把 `| K… |` 那些行摘掉再数——"打不中却一声不响跑完"是台账最坏的失败。
+- **退码要等于表里写的那一个，红行只能落在它自己那一族**（`D1` / `D4` / `D5` / `D14` 这一族前缀）：
+  把别的东西也弄红了说明副本没建全，那种红不算命中；语法炸了、超时也是 rc 非 0，但那不是闸红。
+- **落第一把刀之前先不带刀整跑一遍**：副本里的 doctest 必须全绿，且与仓里的数出同一个条数——
+  红了才是刀弄的，不是台架自己坏的。
+- **这把闸自己也挨过一次反证**：`SABOTAGE_TWIST=K3.expect=D5a node tools/sabotage.mjs` 把一把刀期望点名的
+  断言改错，台账必须判红（它要是还报绿，才是台账在骗人）。
+
+| 刀 | 打在哪一类谎 | 文件 | 针 | 改成 | 期望点名的 FAIL 行 | 跑什么 | rc |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| K1 | 文档把表里那一格抄漂一位 | `README.md` | `1463 / 11223` | `1463 / 11224` | `D1 h7` | `node tools/doctest.mjs` | 1 |
+| K2 | 文档把端口那句删掉 | `README.md` | `端口：本地 5273` | `端口写在别处` | `D4` | `node tools/doctest.mjs` | 1 |
+| K3 | 代码侧的现值动一格（计数器预算） | `js/engine/tiers.js` | `cap: 400000` | `cap: 400001` | `D5 文档写的预算` | `node tools/doctest.mjs` | 1 |
+| K4 | 闸的名单被改（`GATES` 里换一个名） | `tools/verify.sh` | `generator-probe` | `probe-renamed` | `D14a` | `node tools/doctest.mjs` | 1 |
+
+K1、K2 是上一轮那条车道在 scratch 里做过、但没留在树上的两次试验（当时改的是同一个数字、同一句话）；
+K3、K4 打在代码侧与接线侧的现值上。四把刀各点一族，`tools/sabotage.mjs` 逐条打印它命中的 FAIL 行原文。
