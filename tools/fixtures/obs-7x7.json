@@ -1,0 +1,14 @@
+{
+  "_why": "7x7 黑格6 区8 不在菜单上，但 README/DESIGN 印了它的一串读数。这里是那串数的落脚点：node tools/generator-probe.mjs --bless-obs 打印，默认口径（OBS=6 SEED=1 ARM=greedy）下由探针逐字段对表，tools/doctest.mjs 再把文档对上一份。cumMs 是墙钟，故意不存、不比。",
+  "obs": 6,
+  "seed": 1,
+  "arm": "greedy",
+  "dims": "7x7",
+  "nb": 6,
+  "nr": 8,
+  "made": 3,
+  "uniq": 2,
+  "solved": 2,
+  "firstAtt": 3,
+  "exits": "出货=2 步数用完=1 造不出盘=3"
+}

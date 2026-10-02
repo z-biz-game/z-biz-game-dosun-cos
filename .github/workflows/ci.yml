@@ -21,13 +21,11 @@ jobs:
 
       # No npm install: 零运行时依赖。为了"证明点什么"而往 CI 里塞浏览器或打包器，
       # 这个仓就会开始因为网络抖动而红。
+      # 名单只有一份：CI 调 `npm run check`，与本地同一条命令（package.json 里改了 glob 这里就跟着改）。
       - name: Syntax check every source
-        run: |
-          for f in $(git ls-files 'js/*.js' 'js/*/*.js'); do node --check "$f" || exit 1; done
-          node --check server.cjs
-          for f in $(git ls-files 'tools/*.mjs' tools/scenarios.js tools/playtest.cjs); do node --check "$f" || exit 1; done
+        run: npm run check
 
-      # 真正的承诺：判据 / 计数器 / 铅笔 / 官方 4×4 夹具 / 出题器台阶 —— 纯 node，不需要浏览器。
+      # 真正的承诺：判据 / 计数器 / 铅笔 / 官方 4×4 夹具 / 出题器台阶 / 文档对表 —— 纯 node，不需要浏览器。
       - name: Logic gates
         run: npm test
 
@@ -50,12 +48,13 @@ jobs:
         run: npm run verify
 
       # 阴性自证：闸必须能被证明"会红"。种一条注定错的期望，必须 rc 非 0 且点名是哪条腿吃下的。
+      # 命令也只有一份（package.json 的 selftest），CI 不另写一遍环境变量串。
       - name: Gate proves it can fail
         env:
           WD_TIMEOUT: 900
         run: |
           set +e
-          SELF=1 BROWSER=1 bash tools/verify.sh > _tmp-selftest.log 2>&1
+          npm run selftest > _tmp-selftest.log 2>&1
           rc=$?
           set -e
           echo "rc=$rc"

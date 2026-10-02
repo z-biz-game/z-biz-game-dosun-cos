@@ -27,7 +27,7 @@ const el = {
 export function measuredLine(id) {
   const m = TIERS_MEASURED[id];
   if (!m) return '';
-  return `实测 出货 第${m.shipAttempt}次 · ${m.shipMs}ms · 唯一盘 ${m.uniq}/${m.sample} · 推满 ${m.uniqSolved}/${m.uniq} · 节点 med/p95 ${m.nodesMedP95[0]}/${m.nodesMedP95[1]}`;
+  return `实测 造成 ${m.made}/${m.sample} · 出货 第${m.shipAttempt}次 · ${m.shipMs}ms · 唯一盘 ${m.uniq}/${m.sample} · 推满 ${m.uniqSolved}/${m.uniq} · 节点 med/p95 ${m.nodesMedP95[0]}/${m.nodesMedP95[1]}`;
 }
 
 const Store = {
@@ -242,7 +242,9 @@ const TIER_NOTE = {
   s7: '5×5 里最满的一档：区多、段短',
   h6: '6×6 起手：黑格多一处，段被切得更碎',
   h7: '挖到唯一平均要挪十几步',
-  h8: '菜单的封顶：出货率掉到 35%，还留在表上是因为读数量过',
+  // 这句话里的百分数只能**算出来**：写成字面量就成了散文自带的第二个读数，
+  // 而 造成/样本 那两个数由贴回对表线逐档核对（tools/generator-probe.mjs）。
+  h8: `菜单的封顶：造成率已掉到 ${Math.round(TIERS_MEASURED.h8.made / TIERS_MEASURED.h8.sample * 100)}%，还留在表上是因为读数量过`,
 };
 
 function renderMenu() {

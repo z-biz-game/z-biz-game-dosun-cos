@@ -64,6 +64,20 @@
     const g = D().game;
     eq('第 1 关开出来就是官方那张盘（黑格指纹一致）', [...g.B.black].sort((a, b) => a - b).join(','), '5,15');
     ck('开局未定：判据不许判赢', g.status === 'play' && g.errs().length > 0, `${g.status}/${g.errs().length} 条`);
+
+    // 提示这条接口：它必须走**同一个铅笔**，说出来的第一句得是命名规则的名字。
+    // 这不承担"页面上有提示按钮"——台面方法是真的，按钮没有（见 README 的不承诺）。
+    const h0 = D().hint();
+    ck('提示的第一句是命名规则的名字（不是文案）', /^N[1-4][a-z]? /.test(String(h0 && h0.text)), JSON.stringify(h0));
+    ck('提示带着铅笔的钉满读数', /铅笔 \d+\/\d+ 已钉/.test(String(h0 && h0.rule)), JSON.stringify(h0 && h0.rule));
+    // 把整盘点成气球：这局没有这样的解，铅笔必须报矛盾，而不是"推不动"或推满。
+    for (const i of g.B.cells) D().place(i, EN().W);
+    const hBad = D().hint();
+    ck('摆成全气球后提示报的是矛盾（不是 stalled、不是推满）', !!hBad.conflict && !hBad.stalled, JSON.stringify(hBad));
+    ck('矛盾那一行点名了哪条规则', /^N[1-4]/.test(String(hBad.conflict)), String(hBad.conflict));
+    D().game.clear();
+    eq('清盘回到开局：已定格归零', D().state().decided, 0);
+
     for (const [i, v] of o.sol) D().place(i, v);
     eq('摆完官方解答：判据 0 条违反', g.errs().length, 0);
     eq('摆完官方解答：状态 = won', g.status, 'won');
@@ -74,7 +88,7 @@
   }
 
   // ---------- menu：印给玩家看的每个数字都等于引擎导出的那个 ----------
-  const LINE = /^实测 出货 第(\d+)次 · (\d+)ms · 唯一盘 (\d+)\/(\d+) · 推满 (\d+)\/(\d+) · 节点 med\/p95 (\d+)\/(\d+)$/;
+  const LINE = /^实测 造成 (\d+)\/(\d+) · 出货 第(\d+)次 · (\d+)ms · 唯一盘 (\d+)\/(\d+) · 推满 (\d+)\/(\d+) · 节点 med\/p95 (\d+)\/(\d+)$/;
   async function menu() {
     plant('menu');
     D().show('menu');
@@ -82,20 +96,21 @@
     const T = EN().TIERS, M = EN().TIERS_MEASURED;
     eq('菜单档位条数 == TIERS（外加官方例题一行）', document.querySelectorAll('#tier-list .tier').length, T.length + 1);
     eq('档位 id 逐个来自 TIERS', T.map(t => t.id).join(','), Object.keys(M).join(','));
-    let matched = 0, printed = 0;
+    let matched = 0;
     for (const t of T) {
       const e = document.getElementById(`tier-measured-${t.id}`);
       ck(`${t.id}：这一档的实测行存在`, !!e);
       const line = e ? (e.textContent || '').trim() : '';
       const m = LINE.exec(line);
       ck(`${t.id}：实测行是可解析的读数（不是形容词）`, !!m, line);
-      if (!m) continue;
-      printed++;
-      const g = { shipAttempt: +m[1], shipMs: +m[2], uniq: +m[3], sample: +m[4], uniqSolved: +m[5], uniq2: +m[6], nodesMed: +m[7], nodesP95: +m[8] };
+        if (!m) continue;
+      const g = { made: +m[1], madeSample: +m[2], shipAttempt: +m[3], shipMs: +m[4],
+        uniq: +m[5], sample: +m[6], uniqSolved: +m[7], uniq2: +m[8], nodesMed: +m[9], nodesP95: +m[10] };
       const w = M[t.id];
       const same = g.shipAttempt === w.shipAttempt && g.shipMs === w.shipMs && g.uniq === w.uniq && g.sample === w.sample
-        && g.uniqSolved === w.uniqSolved && g.uniq2 === w.uniq && g.nodesMed === w.nodesMedP95[0] && g.nodesP95 === w.nodesMedP95[1];
-      ck(`${t.id}：打印的 8 个数字 == TIERS_MEASURED 的 8 个字段`, same, `印出 ${JSON.stringify(g)} / 引擎 ${JSON.stringify(w)}`);
+        && g.uniqSolved === w.uniqSolved && g.uniq2 === w.uniq && g.nodesMed === w.nodesMedP95[0] && g.nodesP95 === w.nodesMedP95[1]
+        && g.made === w.made && g.madeSample === w.sample;
+      ck(`${t.id}：打印的 10 个数字全部等于 TIERS_MEASURED 的字段`, same, `印出 ${JSON.stringify(g)} / 引擎 ${JSON.stringify(w)}`);
       matched++;
       const btn = document.getElementById(`tier-${t.id}`);
       eq(`${t.id}：尺寸也来自 TIERS`, btn.dataset.size, `${t.R}×${t.C}`);
@@ -103,6 +118,21 @@
     }
     eq('七档全部按 TIERS_MEASURED 打印（无一档缺读数）', matched, T.length);
     ck('页面上写着实测二字（读数而不是形容词）', /实测/.test(txt('#tier-measured-s6')), txt('#tier-measured-s6'));
+
+    // 封顶这件事是玩家看得见的披露，不是只有代码注释知道：这句话必须在页面上、
+    // 并且菜单里真的没有超出 TIERS 的尺寸（"出局理由印在选档页上"要能红给改文案的人看）。
+    const disc = txt('#tier-disclose');
+    ck('选档页写着 7×7 不在菜单里（出局理由印给玩家）', /7×7/.test(disc) && /不在菜单里/.test(disc), disc);
+    ck('那句披露点名了该复跑的那条命令（读数可追，不是口头结论）', /generator-probe/.test(disc), disc);
+    // 页面上不许有第二个"出货率"：散文里自己写出来的百分数/分数没有证人，
+    // 而各档实测行的那个 造成 N/样本 有 —— 这句闸把"只能引用有证人的那个"钉住。
+    ck('那句披露自己不带读数（百分数或分数都得回到各档的实测行）',
+      !/\d+(\.\d+)?\s*%/.test(disc) && !/\d+\/\d+/.test(disc), disc);
+    ck('那句披露指向各档实测行的字段名（不是另起一句结论）', /造成/.test(disc) && /TIERS_MEASURED/.test(disc), disc);
+    eq('TIERS 里没有 6×6 以上的档（封顶就是封顶）', T.filter(t => t.R > 6 || t.C > 6).length, 0);
+    const sizes = [...document.querySelectorAll('#tier-list .tier')].map(b => b.dataset.size).filter(Boolean).join(',');
+    ck('页面上每个档按钮的尺寸都在 TIERS 名单里', [...document.querySelectorAll('#tier-list .tier')]
+      .every(b => !b.dataset.size || T.some(t => `${t.R}×${t.C}` === b.dataset.size)), `按钮尺寸 ${sizes}`);
     return report();
   }
 

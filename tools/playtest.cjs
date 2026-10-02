@@ -1,6 +1,6 @@
 // Minimal CDP driver for headless playtesting (Node 22+ global WebSocket/fetch).
 //
-// env: CDP_PORT (devtools port, default 9367), BASE_URL (page origin),
+// env: CDP_PORT (devtools port, default 9473), BASE_URL (page origin),
 //      EXPECT_OFFICIAL / EXPECT_KEYS / GEN_SEED（node 侧算好的证人，递进页面去比）,
 //      GATE_SELFTEST=1（让 scenarios.js 在每条报告里种一条注定错的期望）
 //
@@ -15,8 +15,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const PORT = Number(process.env.CDP_PORT || 9367);
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:5267/';
+// 默认端口 5273/9473 是本仓的车道位（CDP 不用 5273 的镜像位 9373——那条上坐着兄弟车道的长期
+// Chrome，attach 过去读到的是别人的页面）。为什么写在这一层：verify.sh 会用 env 覆盖它们，
+// 而 `node tools/playtest.cjs …` 单独跑时读的就是这里的默认值，两处不一致时台架会连错浏览器。
+const PORT = Number(process.env.CDP_PORT || 9473);
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:5273/';
 const ORIGIN = new URL(BASE).origin;
 const SELFTEST = process.env.GATE_SELFTEST === '1';
 const cmd = process.argv[2];
@@ -262,6 +265,9 @@ async function main() {
   // ---------- 真事件腿：指针点到赢（CDP Input.*，不是页内 new Event） ----------
   async function leg() {
     await gotoFresh(BASE);
+    // 这一条腿自己管存档：进来先清，出去再清。engine 腿赢过一次就会在 best 里留下一条用时，
+    // 不清的话下面"第一次赢"读的是别人写下的纪录，而不是这一局。
+    await evaluate(`window.dosun.Store.reset()`);
     await evaluate(`(()=>{ if(!window.dosun.game) window.dosun.begin({tier:'off'}); return 1; })()`);
     await sleep(200);
     const p = await json(PREP);
@@ -374,13 +380,55 @@ async function main() {
     eq('赢局里再点：状态仍是 won', refused.status, 'won');
     ck('赢局里再点会被告知为什么', /已经结束/.test(refused.line), refused.line);
 
+    // ---------- 纪录只比时间：幕布上那句"本档最快纪录已更新"是有读数的 ----------
+    // 这一局是真点出来的，所以存档里的 ms 就是台面上的 elapsedMs；
+    // 后面两条灌进去的对照局走台面 API（Store.record 正是按钮那条路调的函数），
+    // 判据是"慢的顶不掉、快的能顶掉"，方向必须不对称 —— 否则这条等式对任何实现都能绿。
+    const rec0 = await json(`(()=>{const d=window.dosun;return {best:d.Store.best('off'),st:d.state(),
+      line:(document.querySelector('#win-record').textContent||'').trim()};})()`);
+    ck('赢局把纪录写进了存档（本档 best 带着用时读数）', !!rec0.best && Number.isInteger(rec0.best.ms), JSON.stringify(rec0.best));
+    eq('存档里的用时 = 台面上的计时（同一个数，不是各算各的）', rec0.best.ms, rec0.st.elapsedMs);
+    eq('存档里的步数 = 这一局的步数', rec0.best.moves, rec0.st.moves);
+    ck('第一次赢：幕布上说纪录更新了（没有旧纪录可比）', /最快纪录已更新/.test(rec0.line), rec0.line);
+
+    const recSlow = await json(`(()=>{const d=window.dosun;const prev=d.Store.best('off');
+      d.Store.record('off',{ms:prev.ms+60000,moves:1,size:prev.size});
+      const now=d.Store.best('off');return {prevMs:prev.ms,prevMoves:prev.moves,ms:now.ms,moves:now.moves};})()`);
+    eq('更慢的一局顶不掉纪录（存的还是原来那个用时）', recSlow.ms, recSlow.prevMs);
+    eq('更慢的一局也没把步数换进来（整条纪录一起换或一起不换）', recSlow.moves, recSlow.prevMoves);
+
+    const recFast = await json(`(()=>{const d=window.dosun;const prev=d.Store.best('off');
+      const faster=Math.max(1,prev.ms-1000);d.Store.record('off',{ms:faster,moves:99,size:prev.size});
+      const now=d.Store.best('off');return {prevMs:prev.ms,faster,ms:now.ms,moves:now.moves};})()`);
+    ck('探针本身有效：灌进去的那个用时确实比旧纪录快', recFast.faster < recFast.prevMs, `${recFast.faster} < ${recFast.prevMs}`);
+    eq('更快的一局顶掉了纪录', recFast.ms, recFast.faster);
+    eq('顶掉之后步数跟着换（换的是整条纪录）', recFast.moves, 99);
+
+    // ---------- 坏档：localStorage 里的东西是外部输入，不能假设它是我们写进去的形状 ----------
+    const corrupt = await json(`(()=>{const k='dosun-cos:v1',d=window.dosun;const bad=['{','not json','null','[]','{"cursor":"7"}','{"best":"x"}'];
+      const tries=[];for(const s of bad){localStorage.setItem(k,s);
+        try{tries.push({s,data:JSON.stringify(d.Store.data),cur:d.Store.cursor(),best:String(d.Store.best('off'))});}
+        catch(e){tries.push({s,threw:String((e&&e.message)||e)});}}
+      return tries;})()`);
+    eq('六种坏档都没让台面抛（读档的那三条路各自吞得下）', corrupt.filter(t => t.threw).map(t => t.s).join(','), '');
+    eq('坏档一律回读成空档游标 1（不把脏字符串当游标）', corrupt.map(t => t.cur).join(','), corrupt.map(() => 1).join(','));
+    eq('坏档里的 best 读不出来就是 null（不返回脏东西）', corrupt.map(t => t.best).join(','), corrupt.map(() => 'null').join(','));
+    eq('彻底解析不了的三档回读成 {}（不是 undefined、不是半截对象）',
+      corrupt.filter(t => ['{', 'not json', 'null'].includes(t.s)).map(t => t.data).join(','), '{},{},{}');
+
     // 换一局：走 UI 那条路（shipOne），seed 必须来自存档游标而不是墙钟
+    const swept = await json(`(()=>{const d=window.dosun;d.Store.reset();
+      return {raw:localStorage.getItem('dosun-cos:v1'),cur:d.Store.cursor(),best:String(d.Store.best('off'))};})()`);
+    eq('坏档扫完之后清档：localStorage 里什么都没有', swept.raw, null);
+    eq('清档之后游标回到 1（下面的 seed 断言要的是"从空档起"那条路）', swept.cur, 1);
+    eq('清档之后纪录不在了（刚灌的那条跟着没了）', swept.best, 'null');
     await evaluate(`window.dosun.begin({tier:'s4'})`);
     await sleep(200);
     const g1 = await json(`(()=>{const g=window.dosun.game;return {seed:g.puzzle.seed,key:g.puzzle.key,read:g.puzzle.read,att:g.puzzle.att,tier:g.puzzle.tier,cur:window.dosun.Store.cursor()};})()`);
     ck('换一局换出了一张生成盘（seed 是小整数，不是时间戳）', Number.isInteger(g1.seed) && g1.seed >= 1 && g1.seed < 1e7, JSON.stringify(g1));
     eq('生成的盘计数器读数 = 1 解', g1.read, '1');
     ck('游标推到了 seed 之后（下一局不会撞同一张）', g1.cur > g1.seed, `${g1.seed} / ${g1.cur}`);
+    eq('空档起的第一局就从游标 1 出发（不是"随便一个正整数"）', g1.seed, 1);
     await evaluate(`window.dosun.begin({tier:'s4'})`);
     await sleep(200);
     const g2 = await json(`(()=>{const g=window.dosun.game;return {seed:g.puzzle.seed,key:g.puzzle.key};})()`);
@@ -389,6 +437,19 @@ async function main() {
     const domG = await stOf();
     ck('页面把 seed 印出来了', domG.seed.includes(String(g2.seed)), domG.seed);
     ck('面板上"档位读数"印的是 TIERS_MEASURED 那一行', /实测/.test(domG.measured), domG.measured);
+
+    // 存档到底落没落盘：只在同一份文档里读到游标，说明的可能只是内存。
+    // 换一次真文档（reload）再读一次，跨过去了才叫 localStorage 的读数。
+    await gotoFresh(BASE);
+    const d1 = await docInfo();
+    ck('reload 换出了新文档（下面那条读数不是同一份内存）', d1.doc !== domG.doc, `${domG.doc} -> ${d1.doc}`);
+    const cur2 = await json(`window.dosun.Store.cursor()`);
+    eq('reload 之后游标还在（存档真的跨文档）', cur2, g2.seed + 1);
+
+    // 写档的腿自己清档：两种 URL 形态共用同一个浏览器 profile，
+    // 上一形态留下的游标会让下一形态的"从空档起"变成别人的读数。
+    await evaluate(`window.dosun.Store.reset()`);
+    eq('腿尾存档是干净的（下一形态从空档开始）', await json(`localStorage.getItem('dosun-cos:v1')`), null);
 
     out({ leg: arg, clicks: clicks.length, cells: p.cells.length, buttons: p.btns.length });
   }
