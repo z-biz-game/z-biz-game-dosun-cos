@@ -15,7 +15,9 @@
     "test": "bash tools/verify.sh",
     "verify": "BROWSER=1 bash tools/verify.sh",
     "selftest": "SELF=1 BROWSER=1 bash tools/verify.sh",
-    "sabotage": "node tools/sabotage.mjs"
+    "sabotage": "node tools/sabotage.mjs",
+    "deploy-set": "node tools/deploy-set.mjs",
+    "deploy-set:selftest": "node tools/deploy-set-selftest.mjs"
   },
   "keywords": [
     "game",
