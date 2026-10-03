@@ -20,7 +20,7 @@ const el = {
   filled: $('#stat-filled'), regions: $('#stat-regions'), conflicts: $('#stat-conflicts'),
   genms: $('#stat-genms'), measured: $('#stat-measured'),
   stateLine: $('#state-line'), winVeil: $('#win-veil'), winMeta: $('#win-meta'), winRecord: $('#win-record'),
-  canvas: $('#board'), sound: $('#btn-sound'),
+  canvas: $('#board'), sound: $('#btn-sound'), pause: $('#btn-pause'),
 };
 
 // 档位行上印的那句话：一个字段都不自己算，全部取 TIERS_MEASURED（tools/generator-probe.mjs 的读数）。
@@ -119,6 +119,25 @@ function startClock() {
 }
 function stopClock() { baseElapsed = clock(); startedAt = 0; clearInterval(ticker); ticker = 0; }
 
+// ---- 暂停：真的把仿真冻住，不是只翻一个布尔量 ----
+//
+// 这一档唯一持续推进的仿真是耗时时钟（startedAt 跟着 Date.now 走），ticker 是它唯一的心跳。
+// 暂停做两件真事：① stopClock() 把 baseElapsed 落账、startedAt 归 0、ticker 停 ——
+// 之后 clock() 恒等于 baseElapsed，墙钟再走多久也加不上去；② 恢复时 startClock() 重新起算，
+// startedAt 被复位成"从现在起"，所以恢复后的第一帧不会把暂停期间憋下的墙钟一次性灌进来（没有 dt 尖峰）。
+//
+// 空格在本仓已被"循环摆当前格"占用（见 keydown），抢来当暂停会把玩法键打死，所以只绑 P。
+let paused = false;
+function setPaused(v) {
+  if (v === paused) return;
+  paused = v;
+  if (v) stopClock(); else startClock();
+  el.pause.setAttribute('aria-pressed', String(paused));
+  el.pause.textContent = paused ? '继续' : '暂停';
+  el.pause.title = paused ? '继续 (P)' : '暂停 (P)';
+}
+function togglePause() { setPaused(!paused); }
+
 function onWin() {
   stopClock();
   const ms = clock();
@@ -207,6 +226,9 @@ function begin({ tier = DEFAULT_TIER, seed = null } = {}) {
   Store.setCursor(puzzle.seed + 1);
   game = new Game(puzzle);
   baseElapsed = 0;
+  paused = false;          // 新一局永远从"没暂停"开始：startClock 之前必须先把闸门打开
+  el.pause.setAttribute('aria-pressed', 'false');
+  el.pause.textContent = '暂停';
   el.winVeil.hidden = true;
   show('game');
   startClock();
@@ -312,6 +334,7 @@ el.sound.addEventListener('click', () => {
   syncAll();
 });
 $('#btn-reset').addEventListener('click', () => { Store.reset(); game = null; show('menu'); });
+el.pause.addEventListener('click', togglePause);
 
 window.addEventListener('keydown', ev => {
   keys.seen++;
@@ -330,6 +353,7 @@ window.addEventListener('keydown', ev => {
   else if (k === 'x' || k === 'X') { place(game.cursor, E); keys.handled++; }
   else if (k === 'Backspace' || k === 'Delete') { place(game.cursor, null); keys.handled++; }
   else if (k === 'z' || k === 'Z') { undo(); keys.handled++; }
+  else if (k === 'p' || k === 'P') { togglePause(); ev.preventDefault(); keys.handled++; }
 });
 
 // 方向键在选择框里走：黑格也走（它是盘面上的格子，只是摆不了球），到盘边就停。
@@ -357,6 +381,7 @@ window.dosun = {
   view,
   get game() { return game; },
   show, begin, renderMenu, select, cycle, place, undo, measuredLine,
+  setPaused, togglePause, isPaused: () => paused,
   keyHits: () => ({ ...keys, by: { ...keys.by } }),
   state: () => (game ? { ...game.counts(), moves: game.moves, cursor: game.cursor, status: game.status, tier: game.puzzle.tier, seed: game.puzzle.seed, errs: game.errs(), elapsedMs: clock() } : null),
   winFacts: () => (game ? game.winFacts() : null),
