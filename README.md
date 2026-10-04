@@ -92,8 +92,8 @@ npm run selftest     # → rc=1，五份报告各点名吃下一条种下的错�
   （对表打印在 `tools/verify.sh:318`，落到 `_tmp-verify/counts.txt`）。
   本地根 `/`、本地 Pages 前缀形态 `/z-biz-game-dosun-cos/`，`BASE_URL=…` 再追加**已部署站点**
   （`tools/verify.sh:137` 把它并入同一个形态循环，形态数由 `${#SHAPES[@]}` 现取，不是写死的 2）：
-  第三形态真跑：3 种形态 × 5 份报告 = 15 份读数（本轮这一笔先在本地两种形态上跑，297/297；
-  等它部署到 Pages 之后再对线上复跑第三形态，见 `DESIGN.md`）。
+  第三形态真跑：3 种形态 × 5 份报告 = 15 份读数（本轮这一笔部署到 Pages 之后对线上复跑过：15 份齐、
+  297/297/297，对表行写着「应有 15 个，实到 15」；复跑命令与逐形态读数见 `DESIGN.md`）。
   "逐报告条数"这五个数不只自洽——`npm run verify` 跑完浏览器腿后拿本轮 `counts.txt` 再比一次
   （`tools/verify.sh:375` 调 `tools/doctest.mjs --counts`），少一份、多一份、两份不等量都红。
   CI 只跑前两种形态（`npm run verify` 不带 `BASE_URL`）——第三种要等部署完成才存在，只能在本地对线上跑。

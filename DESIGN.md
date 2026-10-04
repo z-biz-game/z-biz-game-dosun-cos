@@ -247,9 +247,9 @@ CI 里 `check`+`browser` 两个 job：逻辑闸跑 node 20，浏览器闸必须�
 线上那一份也只有线上才测得到：CI 里前两种形态全绿，证明的是这套代码在这两种挂载下对；
 Pages 部署完之后还要第三种形态——`BASE_URL=https://z-biz-game.github.io/z-biz-game-dosun-cos/`
 再跑一遍同一套腿（`tools/verify.sh:137` 把它并入 `SHAPES`，preflight 逐形态 curl 到
-`js/engine/rules.js`/`tiers.js` 才放行）。本轮这一笔还在本地，跑的是前两种形态：2 形态 × 5 份报告
-= 10 份读数全齐、297/297；第三种要等它部署到 Pages 之后才存在，届时再对线上复跑同一套腿。
-这一形态不能塞进 CI：部署没完成时它还不存在。
+`js/engine/rules.js`/`tiers.js` 才放行）。本轮这一笔两遍都跑了：不带 `BASE_URL` 的那遍 2 形态 × 5 份
+= 10 份读数全齐、297/297；部署到 Pages 之后对线上复跑的那遍 3 形态 × 5 份 = 15 份、297/297/297，
+对表那一行写着「应有 15 个，实到 15」。这一形态不能塞进 CI：部署没完成时它还不存在。
 
 ## 不承诺
 
