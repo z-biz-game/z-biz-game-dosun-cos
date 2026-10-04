@@ -46,7 +46,7 @@ npm run serve        # 零依赖静态服务 → http://127.0.0.1:5273/（packag
 ```bash
 npm run check        # → check OK（package.json:7 逐文件 node --check，含 server.cjs 与 tools）
 npm test             # → logic: PASS（tools/verify.sh:57），rc=0
-npm run verify       # → === ALL GREEN ===（tools/verify.sh:398），rc=0（退出码在 :399）
+npm run verify       # → === ALL GREEN ===（tools/verify.sh:405），rc=0（退出码在 :406）
 npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:368-395）
 ```
 
@@ -57,6 +57,11 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
   那一句里的七个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`；doctest 自己那一个由 `D14c` 对），**不是手抄的**。
   `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:60` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
+- **产物闸（部署集）走 `npm run verify` 的收尾**：`node tools/deploy-set.mjs` 加它自己的台架
+  （`tools/verify.sh:402-404`）。它查 assemble 出来的清单/`sw.js`/图标与页面实际要取的那些 URL 同源，
+  不碰 Chrome、不读页面。这两步原先只坐在 ci.yml 里——本地整闸一次都不跑，于是「本地全绿、
+  线上 404 自己的文件」这一类坏法只有部署之后才看得见。它排在结论横幅**之前**，
+  所以它的红会先把 `=== ALL GREEN ===` 压成 `=== FAILURES ABOVE ===`，不会被盖住。
 - **出题台阶 `npm run probe`**：口径 `ARM=greedy MAXMUT=40 cap=400000 maxSol=400`，每档 20 次尝试、
   `SEED=1`（`tools/generator-probe.mjs:24` 的默认值、`:31` 的口径行）。
   本轮合计 7 档 · 造成 111 · 唯一 52 · 其中铅笔推满 52 · 可供验谎 59（`tools/generator-probe.mjs:86`）。

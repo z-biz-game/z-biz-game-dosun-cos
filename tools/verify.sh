@@ -395,5 +395,12 @@ if [ "$SELF" = 1 ]; then
 fi
 
 kill $WD 2>/dev/null
+# 部署集闸：ci.yml 跑这两步、本地整闸以前一次都不跑。缺这一步就是「本地全绿、线上 404 自己的
+# manifest / sw.js / 图标」这一整类坏法。它不碰 Chrome，也不读页面，纯查产物。
+# 排在横幅之前：横幅在它后面，红才不会被先打印出去的 ALL GREEN 盖住；也只在 BROWSER=1 这一路跑——
+# 上面 `npm test` 那条早退路径按仓里的话术只跑逻辑闸，这一对是产物闸，走 CI 的 npm run verify。
+echo "=== deploy-set ==="
+node tools/deploy-set.mjs || FAILED=1
+node tools/deploy-set-selftest.mjs || FAILED=1
 [ $FAILED -eq 0 ] && echo "=== ALL GREEN ===" || echo "=== FAILURES ABOVE (rc=$FAILED) ==="
 exit $FAILED

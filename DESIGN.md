@@ -184,7 +184,7 @@
 | `npm run doctest` | 文档对回代码 | 61 断言 | 解析不到就红；名单/形状/现值只有一份（`tools/doctest.mjs`） |
 | `npm run sabotage` | 破坏试验台账（刀只打在临时副本） | 13 断言 | 每一把刀都必须把 doctest 弄红并点名，没红就整条判红（`tools/sabotage.mjs`） |
 | `npm test` | 上面七条串起来，doctest 压轴 | rc=0 | `tools/verify.sh:31`、`:57` |
-| `npm run verify` | 真 Chrome + CDP，两种 URL 形态（CI），三种（本地带 `BASE_URL`） | 每种形态 224 断言，rc=0 | 条数逐腿、逐形态相同（`tools/verify.sh:303`）、`exit $FAILED`（`:399`） |
+| `npm run verify` | 真 Chrome + CDP，两种 URL 形态（CI），三种（本地带 `BASE_URL`）；收尾再跑一遍产物闸 | 每种形态 224 断言，rc=0 | 条数逐腿、逐形态相同（`tools/verify.sh:303`）、部署集那两步（`:402-404`）、`exit $FAILED`（`:406`） |
 | `npm run selftest` | 阴性自证 | rc=1 | 四条腿各点名吃下一条 planted（`tools/verify.sh:368-395`） |
 
 CI 里 `check`+`browser` 两个 job：逻辑闸跑 node 20，浏览器闸必须跑 node 22
