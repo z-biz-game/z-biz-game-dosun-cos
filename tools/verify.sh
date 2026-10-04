@@ -2,7 +2,7 @@
 # 一条命令跑全部闸。每道闸单独退码，红要能点名是哪道闸（各 tool 自己印 FAIL <gate> :: …）。
 #
 #   bash tools/verify.sh                 # 默认：七道 node 逻辑闸（npm test 走的就是这一条，快且稳）
-#   BROWSER=1 bash tools/verify.sh       # 再加真浏览器闸：engine / gen / play 三条腿 × 两种 URL 形态
+#   BROWSER=1 bash tools/verify.sh       # 再加真浏览器闸：engine / gen / play / pause 四条腿 × 两种 URL 形态
 #   BASE_URL=https://z-biz-game.github.io/z-biz-game-dosun-cos/ BROWSER=1 bash tools/verify.sh
 #                                       # 追加第三种形态：线上已部署站点（本地两种全绿不等于 Pages 上那份是对的）
 #   SELF=1 … BROWSER=1 bash tools/verify.sh   # 阴性自证：种一条注定错的期望，必须点名变红、rc 非 0
@@ -81,7 +81,7 @@ export GATE_SELFTEST=$SELF
 TMPD="_tmp-verify"
 rm -rf "$TMPD"; mkdir -p "$TMPD"
 GEN_SEED=${GEN_SEED:-7}
-LEGS=${LEGS:-engine gen play}
+LEGS=${LEGS:-engine gen play pause}
 # 一条腿应当落地哪几份**报告标签**，只有这一处定义：腿循环、条数对表、阴性自证的分母都从它现算。
 # 写死数字会静默缩样——加一条腿忘了种错、或某条腿整条没跑，对表照样打印"各形态条数相同"。
 # （标签形状就是下面 parse 的调用处：run_scenario 印 "<腿>/<场景>"，run_cmd 只印腿名。）
@@ -90,6 +90,7 @@ reports_of() {
     engine) echo "engine/engine engine/menu" ;;
     gen)    echo "gen/gen" ;;
     play)   echo "play" ;;
+    pause)  echo "pause" ;;
     *)      echo "" ;;          # 未知腿由腿循环点名，这里不重复
   esac
 }
@@ -298,11 +299,15 @@ for base in "${SHAPES[@]}"; do
         leg_start play "$base" || continue
         run_cmd playleg play "$shape_idx" leg play
         leg_stop ;;
+      pause)
+        leg_start pause "$base" || continue
+        run_cmd pauseleg pause "$shape_idx" leg pause
+        leg_stop ;;
       *)
         # 未知腿名必须红，不能"匹配不到就算跑完了"（LEGS=menu 看着像跑完，其实一份报告都没有：
         # menu 是 engine 腿里的一个场景名，不是腿名）。花括号不是装饰：没有 LANG 的环境里
         # 裸写 `$leg（` 会把全角括号的首字节算进变量名，报 unbound variable——红了也点不出是谁。
-        echo "  RED 未知的腿：${leg}（LEGS 只认 engine gen play）" >&2; FAILED=1 ;;
+        echo "  RED 未知的腿：${leg}（LEGS 只认 engine gen play pause）" >&2; FAILED=1 ;;
     esac
   done
 done

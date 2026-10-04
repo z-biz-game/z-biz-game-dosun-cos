@@ -44,8 +44,22 @@ const PLAYTEST = read('tools/playtest.cjs');
 const SCEN = read('tools/scenarios.js');
 const HTML = read('index.html');
 
+// 闸的名单只有一份：verify.sh 里 `LEGS=${LEGS:-…}` 的默认值加上 `reports_of` 的那些分支。
+// 这里从**脚本现值**把名字推出来，不写死 engine/gen/play —— 一条腿加进脚本、README 忘了跟着加数，
+// 写死名单的闸会照样绿（它读的是自己那份名单）。这一类"缩样看不出来"的洞正是本文件存在的理由。
+const SHAPE = (() => {
+  const m = VERIFY.match(/^LEGS=\$\{LEGS:-([^}]*)\}/m);
+  const legs = m ? m[1].trim().split(/\s+/) : [];
+  const map = {};
+  for (const x of VERIFY.matchAll(/^ {4}([a-z][a-z0-9_-]*)\)\s+echo "([^"]*)"/gm)) map[x[1]] = x[2].trim().split(/\s+/);
+  const reports = [...new Set(legs.flatMap(l => map[l] || []))];
+  const names = [...new Set(reports.map(t => t.split('/').pop()))];
+  return { legs, map, reports, names };
+})();
+const ITEMS_RE = () => new RegExp(`\\b(${SHAPE.names.join('|')}) (\\d+)(?=\\s*\\/|\\s*，|\\s*\\()`, 'g');
+
 // ---- 另一种入口：--counts（由 verify.sh 的浏览器段在对表之后调一次）----
-// 文档里那句"逐报告条数"抄的是浏览器腿本轮真报出来的数。逻辑段跑不到浏览器，所以那四个数
+// 文档里那句"逐报告条数"抄的是浏览器腿本轮真报出来的数。逻辑段跑不到浏览器，所以那几个数
 // 由这里比对：COUNTS_FILE 指向刚才那份 counts.txt（<形态> <腿/场景> <条数>），逐形态必须等量、
 // 且每一份都等于文档抄的那个值。这一模式不跑别的检查，也不进 rows——
 // 否则同一份文档在两种入口下会数出两个不同的条数，D14c 那条自证就成了追一个会跳的数。
@@ -61,12 +75,9 @@ if (process.argv.includes('--counts')) {
       const [shape, tag, n] = l.split(/\s+/);
       (seen[tag] = seen[tag] || {})[shape] = +n;
     }
-    const legsM2 = VERIFY.match(/^LEGS=\$\{LEGS:-([^}]*)\}/m);
-    const reportMap2 = {};
-    for (const m of VERIFY.matchAll(/^\s{4}(engine|gen|play)\)\s+echo "([^"]*)"/gm)) reportMap2[m[1]] = m[2].trim().split(/\s+/);
-    const expect2 = [...new Set((legsM2 ? legsM2[1].trim().split(/\s+/) : []).flatMap(l => reportMap2[l] || []))];
-    const items2 = [...README.matchAll(/\b(engine|menu|gen|play) (\d+)(?=\s*\/|\s*，|\s*\()/g)].map(m => [m[1], +m[2]]);
-    bad += say(expect2.length === 4 && items2.length === expect2.length,
+    const expect2 = SHAPE.reports;
+    const items2 = [...README.matchAll(ITEMS_RE())].map(m => [m[1], +m[2]]);
+    bad += say(expect2.length >= 4 && items2.length === expect2.length,
       'counts :: 文档的逐报告条数与脚本的名单一样长',
       `脚本 ${expect2.join('/')} vs 文档 ${items2.map(([n]) => n).join('/')}`);
     for (const full of expect2) {
@@ -125,16 +136,11 @@ ok(ghost.length === 0, 'D2b 每条标签都不只活在注释里（非注释行�
   ghost.length ? `只有声明没有实现：${ghost.join(' ')}` : `${codeLabels.length} 条标签在 pencil.js 的非注释行里各出现 ≥1 次`);
 
 // ---- D3 闸的形状：腿数、每腿报告数、形态数、合计，全部从 verify.sh 现值推 ----
-const legsM = VERIFY.match(/^LEGS=\$\{LEGS:-([^}]*)\}/m);
-const legs = legsM ? legsM[1].trim().split(/\s+/) : [];
-// reports_of 的那张表：`engine) echo "engine/engine engine/menu" ;;`
-const reportMap = {};
-for (const m of VERIFY.matchAll(/^\s{4}(engine|gen|play)\)\s+echo "([^"]*)"/gm)) reportMap[m[1]] = m[2].trim().split(/\s+/);
-const reports = [...new Set(legs.flatMap(l => reportMap[l] || []))];
+const { legs, map: reportMap, reports } = SHAPE;
 const shapesM = VERIFY.match(/^SHAPES=\((.*)\)$/m);
 const shapes = shapesM ? (shapesM[1].match(/"([^"]+)"/g) || []).length : 0;
 const shapeDoc = DOCS.match(/闸的形状：腿 (\d+) 条 · 报告 (\d+) 份 · 形态 (\d+) 种 · 合计 (\d+) 份/);
-ok(legs.length === 3 && Object.keys(reportMap).length === 3 && reports.length >= 4 && shapes >= 2 && !!shapeDoc,
+ok(legs.length >= 3 && Object.keys(reportMap).length >= legs.length && reports.length >= legs.length + 1 && shapes >= 2 && !!shapeDoc,
   'D3a 脚本与文档两边都解析到了闸的形状',
   `verify.sh: ${legs.length} 腿 → ${reports.length} 份报告 × ${shapes} 形态 · 文档句 ${shapeDoc ? '在' : '不在'}`);
 ok(!!shapeDoc && +shapeDoc[1] === legs.length, `D3 文档写的腿数等于 LEGS 默认值（${legs.join(' ')}）`,
@@ -235,7 +241,7 @@ ok(/每档 3 次尝试/.test(probe), 'D7b 子进程探针：SAMPLE=3 必须真�
   `probe 口径行：${probe.trim().slice(0, 120)}`);
 
 // ---- D8 逐报告条数的自洽：文档列的每个数加起来，必须等于它自己写的两个总数 ----
-const items = [...README.matchAll(/\b(engine|menu|gen|play) (\d+)(?=\s*\/|\s*，|\s*\()/g)].map(m => ({ name: m[1], n: +m[2] }));
+const items = [...README.matchAll(ITEMS_RE())].map(m => ({ name: m[1], n: +m[2] }));
 const totals = README.match(/每形态 (\d+) 条 · 合计 (\d+) 条/);
 ok(items.length === reports.length && !!totals, 'D8a 逐报告条数与总数都解析到了',
   `解析 ${items.length} 项 / 期望 ${reports.length} 份 · 总句 ${totals ? '在' : '不在'}`);
@@ -246,17 +252,33 @@ ok(!!totals && perShape * shapes === +totals[2], 'D8b 每形态条数 × 形态�
   totals ? `${perShape}×${shapes} vs ${totals[2]}` : '解析不到');
 
 // ---- D9 引用不漂：文档里每一个 path:NN 都指向真实文件里真实存在的那一行 ----
-const cites = [...DOCS.matchAll(/((?:\.github\/workflows\/)?[\w./-]+\.(?:js|mjs|cjs|sh|json|html|md|yml)):(\d+)(?:-(\d+))?/g)];
+// 只查"行数在范围内"不够：往文件中间插几行，引用就集体往后挪一格，而越界检查一声不响地全绿
+// （本轮 js/main.js 加了 49 行，README/DESIGN 里 5 处引用就这么指到了隔壁代码）。
+// 补两条能机器判的：区间两头不许落在空行上，单行引用更不许整行只写着块闭合符
+// （`done` / `fi` / `}` / `else:`）—— 散文引的是那句实现，指到闭合符上说明它已经漂走了。
+// 只判"整行就是一个闭合符"：`elif COUNTS_FILE=… node tools/doctest.mjs --counts` 是实句，不是闭合符。
+const CLOSER = /^(?:[)\]};]+|done|fi|else|elif|esac|end|then|else:)$/;
+// 台账那几行（`| K… |`）的"针"与"改成"两格里抄的就是引用本身，它描述的是**副本里将要出现的那个状态**，
+// 不是仓里的现值——K5 那一格写的就是"把引用打到空行上"。sabotage 数命中的时候同样先把这些行摘掉
+// （`tools/sabotage.mjs` 的 `hits`），这里用同一条规矩，否则台账自己会被 D9 判红。
+const DOCS_NOLEDGER = DOCS.split('\n').filter(l => !/^\| K\d+ \| /.test(l)).join('\n');
+const cites = [...DOCS_NOLEDGER.matchAll(/((?:\.github\/workflows\/)?[\w./-]+\.(?:js|mjs|cjs|sh|json|html|md|yml)):(\d+)(?:-(\d+))?/g)];
 const bad = [];
 for (const c of cites) {
   let src;
   try { src = read(c[1]); } catch { bad.push(`${c[1]}:${c[2]}（文件不存在）`); continue; }
-  const n = src.split('\n').length;
-  if (+c[2] > n || (+c[3] && +c[3] > n)) bad.push(`${c[1]}:${c[2]}${c[3] ? '-' + c[3] : ''}（该文件只有 ${n} 行）`);
+  const lines = src.split('\n');
+  const n = lines.length;
+  if (+c[2] > n || (+c[3] && +c[3] > n)) { bad.push(`${c[1]}:${c[2]}${c[3] ? '-' + c[3] : ''}（该文件只有 ${n} 行）`); continue; }
+  for (const [k, what] of [[c[2], '首'], [c[3] || c[2], '尾']]) {
+    const L = lines[+k - 1].trim();
+    if (!L) bad.push(`${c[1]}:${k}（${what}行是空行——引用早已漂走）`);
+    else if (!c[3] && CLOSER.test(L)) bad.push(`${c[1]}:${k}（整行只写着块闭合符 ${JSON.stringify(L)}，散文引的不是这里）`);
+  }
 }
 ok(cites.length >= 20, 'D9a 文档里的行号引用解析到了一大堆（少于 20 条说明引用格式改了）', `${cites.length} 条引用`);
-ok(bad.length === 0, 'D9 每一条 path:NN 引用都落在真实文件的行数内',
-  bad.length ? `越界：${bad.join('，')}` : `${cites.length} 条全部在范围内`);
+ok(bad.length === 0, 'D9 每一条 path:NN 都落在真实文件的行数内，且指到的那一行不是空行、不是块闭合符',
+  bad.length ? `漂了：${bad.join('，')}` : `${cites.length} 条引用逐条开过文件、对到了行内容`);
 
 // ---- D10 红线标签双向：文档点名的每条红线都得存在，存在的每条红线都得有人写 ----
 // 取**整条标签**再比关键字：早先在这里先 split('：')[0]，于是"红线：…（打架）"被截成"红线"，
@@ -422,6 +444,38 @@ if (MANIFEST) {
   ok(/^export GATE_ROWS_FILE=/m.test(VERIFY) && /GATE_ROWS="\$LOGD\/gate-rows\.txt"/.test(VERIFY),
     'D19 单跑口径：manifest 由 verify.sh 现写现导出（本轮没有 manifest，逐条数值对表在 npm test / CI 里跑）',
     '这一行不随调用入口漂：有 manifest 时对表五条闸的条数，没有时对表接线本身');
+}
+
+// ---- D20 新局的重置只落在"真接手了新盘"的那两处 ----
+// 这一轮修的是一个把重置写在 begin() 开头的做法：那条函数有三条出口，其中"连着 5 号 seed 都没出货"
+// 那条**不起新局**，屏幕上是上一局那块盘——把 paused / baseElapsed 抹成新局的样子，等于给旧盘解冻
+// 并把表清零，赢下去记的是 ms≈0（正是这一轮要堵的那条洗时间的路）。浏览器腿够不着它：那条出口要一整窗
+// 种子都不出货才走得到（每号种子的 shipOne 预算见 js/engine/tiers.js 的 ship 字段），而"这一窗会不会空"
+// 没有确定答案——在这台机器上连试的几个窗口全都出货，等不来一个能钉进腿里的确定空窗。
+// 所以这条承诺由结构闸守着，而不是由注释守着。
+const BEGIN_AT = MAIN.search(/^function begin\(/m);
+const BEGIN_BODY = BEGIN_AT < 0 ? '' : (MAIN.slice(BEGIN_AT).match(/^[\s\S]*?\n\}/m) || [''])[0];
+const ADOPT_BODY = (MAIN.match(/^function adoptFreshBoard\(\)[\s\S]*?\n\}/m) || [''])[0];
+const idxAll = (src, re) => src.split('\n').map((l, i) => (re.test(l) ? i : -1)).filter(i => i >= 0);
+{
+  const bad = [];
+  const writes = [[/^\s*paused\s*=\s*false;/m, 'paused = false'], [/^\s*baseElapsed\s*=\s*0;/m, 'baseElapsed = 0'],
+    [/winVeil\.hidden\s*=\s*true;/, 'winVeil.hidden = true'], [/setAttribute\('aria-pressed'/, '暂停按钮的 aria-pressed']];
+  for (const [re, what] of writes) if (!re.test(ADOPT_BODY)) bad.push(`重置函数里没有${what}`);
+  for (const [re, what] of writes) if (re.test(BEGIN_BODY)) bad.push(`begin() 里还留着裸写的${what}`);
+  const g = idxAll(BEGIN_BODY, /game = new Game\(/);
+  const a = idxAll(BEGIN_BODY, /^\s*adoptFreshBoard\(\);/);
+  const s = idxAll(BEGIN_BODY, /^\s*startClock\(\);/);
+  if (!(g.length === 2 && a.length === 2 && s.length === 2)) bad.push(`接手新盘的分支要有 2 处、重置 2 处、起表 2 处，实测 ${g.length}/${a.length}/${s.length}`);
+  else for (let i = 0; i < 2; i++) {
+    if (!(g[i] < a[i] && a[i] < s[i])) bad.push(`第 ${i + 1} 条分支的顺序不是「接盘 → 重置 → 起表」（${g[i]}/${a[i]}/${s[i]}）`);
+  }
+  const out = BEGIN_BODY.slice(BEGIN_BODY.indexOf('if (!puzzle) {'));
+  const exit = out.slice(0, (out.indexOf('return null;') + 1) || out.length);
+  if (!/if \(!puzzle\) \{/.test(BEGIN_BODY)) bad.push('读不到"没出货"那条出口');
+  else if (/adoptFreshBoard\(\);|startClock\(\);|game = new Game\(/.test(exit)) bad.push('「没出货」那条出口里出现了重置或起表');
+  ok(bad.length === 0, 'D20 新局重置只落在接手新盘的两条分支上，"没出货"那条出口不抹旧盘的表与冻',
+    bad.length ? `越界：${bad.join('，')}` : `重置函数 4 项写手齐、begin() 内 0 处裸写、两条分支各按「接盘→重置→起表」排序、空仓出口干净`);
 }
 
 // ---- D14c 末项就是本闸本轮真打印的条数（这一条自己也算在内，所以放在最后一次 ok）----

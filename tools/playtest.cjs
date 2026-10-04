@@ -200,8 +200,8 @@ async function main() {
   // 绝不给 nativeVirtualKeyCode：macOS 上 Chrome 把它当平台原生键码，raw keyboard 会把同一只键
   // 反复补发（hebi 实测 520ms 内 3664 次 keydown）。只给 windowsVirtualKeyCode，让 Chrome 自己推。
   const key = async k => {
-    const map = { ArrowRight: 'ArrowRight', ArrowLeft: 'ArrowLeft', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown', ' ': 'Space', w: 'KeyW', b: 'KeyB', x: 'KeyX', z: 'KeyZ', Backspace: 'Backspace' };
-    const vk = { ArrowRight: 39, ArrowLeft: 37, ArrowUp: 38, ArrowDown: 40, ' ': 32, w: 87, b: 66, x: 88, z: 90, Backspace: 8 };
+    const map = { ArrowRight: 'ArrowRight', ArrowLeft: 'ArrowLeft', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown', ' ': 'Space', Enter: 'Enter', w: 'KeyW', b: 'KeyB', x: 'KeyX', z: 'KeyZ', p: 'KeyP', Backspace: 'Backspace' };
+    const vk = { ArrowRight: 39, ArrowLeft: 37, ArrowUp: 38, ArrowDown: 40, ' ': 32, Enter: 13, w: 87, b: 66, x: 88, z: 90, p: 80, Backspace: 8 };
     const text = k.length === 1 ? k : undefined;
     await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code: map[k], text, windowsVirtualKeyCode: vk[k] }, sessionId);
     if (text) await cdp.send('Input.dispatchKeyEvent', { type: 'char', text, key: k, code: map[k], windowsVirtualKeyCode: vk[k] }, sessionId);
@@ -245,7 +245,10 @@ async function main() {
     if (logs.length) console.error(logs.slice(-40).join('\n'));
     console.log('RESULT ' + res);
   } else if (cmd === 'leg') {
-    await leg();
+    // 一条命令名，两条腿：play 走到赢、pause 证明暂停把两样东西一起冻住。
+    // 分成两条腿（而不是往 play 尾巴上加一节）是因为 pause 要从**干净的一局**开始测表针，
+    // 而 play 腿结束时盘面是赢局、纪录已写过、存档刚被清 —— 那种起点上读不出"这一局的用时"。
+    await (arg === 'pause' ? legPause() : leg());
   } else if (cmd === 'shot') {
     await cdp.send('Page.bringToFront', {}, sessionId);
     await sleep(250);
@@ -453,7 +456,250 @@ async function main() {
 
     out({ leg: arg, clicks: clicks.length, cells: p.cells.length, buttons: p.btns.length });
   }
+
+  // ---------- 暂停腿：表针和盘面要一起冻住 ----------
+  //
+  // 这条腿存在的理由只有一个数：`Store.record` 排纪录只看 `r.ms < prev.ms`（js/main.js:45）。
+  // 只停表、不停盘的暂停，等于给思考时间免单 —— 想多久都行，按「继续」再一路摆到赢，
+  // 用时照样顶掉旧纪录。所以这里量的不是"paused 这个布尔量翻了没"，而是三件实事：
+  //   ① 表针冻住（elapsedMs 恒等、HUD 那句话也不再跳）；
+  //   ② 盘面冻住（真指针 + 真按键 + 台面 API 三条路都原样退回，且挡回去的刀数数得清）；
+  //   ③ 解冻之后一切都还能用（对照组：同样的那一格，这一下真的落地）——
+  //      少了对照组，"整条腿什么都没发生"和"暂停真的挡住了"读起来一模一样。
+  async function legPause() {
+    const ROSTER = ['btn-pause', 'btn-fullscreen', 'btn-sound', 'btn-w', 'btn-b', 'btn-e', 'btn-u',
+      'btn-undo', 'btn-new', 'btn-clear', 'btn-menu'];
+    const GEO = ids => `(()=>{
+      const d=window.dosun,g=d.game,h=d.view;
+      const at=(x,y)=>{const e=document.elementFromPoint(x,y);return e?(e.id||e.tagName):'null';};
+      const o={controls:[]};
+      for(const id of ${JSON.stringify(ids)}){const e=document.getElementById(id);
+        if(!e){o.controls.push({id,missing:true});continue;}
+        const b=e.getBoundingClientRect();const x=b.left+b.width/2,y=b.top+b.height/2;
+        const t=document.elementFromPoint(x,y);
+        o.controls.push({id,x,y,w:Math.round(b.width),h:Math.round(b.height),shown:b.width>0&&b.height>0,
+          hit:at(x,y),hitOn:!!t&&(t===e||e.contains(t)),
+          text:(e.textContent||'').trim(),disabled:!!e.disabled,title:e.title||''});}
+      const cv=h.canvas.getBoundingClientRect();
+      o.cells=[];for(const i of g.B.cells){if(g.B.black.has(i))continue;const r=h.cellRect(i);
+        const x=cv.left+r.x+r.size/2,y=cv.top+r.y+r.size/2;o.cells.push({i,name:g.B.name(i),x,y,hit:at(x,y)});}
+      const v=document.getElementById('win-veil');
+      o.veil=!!v&&getComputedStyle(v).display!=='none'&&v.getClientRects().length>0;
+      o.live=document.getElementById('state-line').getAttribute('aria-live');
+      return o;})()`;
+    const SNAP = `(()=>{const d=window.dosun,g=d.game;
+      const t=s=>{const n=document.querySelector(s);return n?(n.textContent||'').trim():'';};
+      const e=document.getElementById('win-veil');
+      return {st:[...g.st].map(([i,v])=>i+':'+(v||'-')).join(','),moves:g.moves,cursor:g.cursor,status:g.status,
+        decided:g.counts().decided,errs:g.errs().length,ms:d.state().elapsedMs,time:t('#stat-time'),
+        paused:d.isPaused(),blocked:d.keyHits().blocked,line:t('#state-line'),
+        btn:t('#btn-pause'),aria:document.getElementById('btn-pause').getAttribute('aria-pressed'),
+        title:document.getElementById('btn-pause').title,seed:String(g.puzzle.seed),tier:g.puzzle.tier,
+        veil:!!e&&getComputedStyle(e).display!=='none'&&e.getClientRects().length>0};})()`;
+    const snap = () => json(SNAP);
+    // 每一刀之前现量命中盒（视图一换坐标就变了，量一次用到底 = 拿旧坐标点新页面）。
+    // 命中点落在控件本身或它的**后代**都算到得了（选档那一行是 `<button><span>…</span></button>`，
+    // 中心自然量到那只 span）；落在别的东西上（幕布、叠层）才算点不到。
+    const clickId = async id => {
+      const c = (await json(GEO([id]))).controls[0];
+      ck(`${id}：点之前命中盒到得了这只控件`, !c.missing && c.shown && c.hitOn,
+        `missing=${c.missing} shown=${c.shown} hit=${c.hit}`);
+      await mouse(c.x, c.y);
+      return c;
+    };
+
+    await gotoFresh(BASE);
+    await evaluate(`window.dosun.Store.reset()`);
+    await evaluate(`(()=>{ if(!window.dosun.game) window.dosun.begin({tier:'off'}); return 1; })()`);
+    // headless 会把页面报成 hidden，而这条腿要看的是 setInterval 驱动的 HUD 那句话还跳不跳 ——
+    // 不钉回 visible，"文字没变"就可能是 Chrome 自己把表掐了，不是本仓的暂停掐的。
+    await evaluate(`Object.defineProperty(document,'hidden',{get:()=>false,configurable:true});
+      Object.defineProperty(document,'visibilityState',{get:()=>'visible',configurable:true});'ok'`);
+    await sleep(200);
+    const d0 = await docInfo();
+    const g0 = await json(GEO(ROSTER));
+    const cells0 = (await json(GEO(['btn-pause']))).cells;
+    evidence({ leg: arg, url: d0.url, timeOrigin: d0.to, doc: d0.doc, seed: (await snap()).seed, controls: g0.controls.length, cells: cells0.length });
+    if (SELFTEST) ck(`SELFTEST·${arg} 种下的错期望（判据必须抓到）`, false, 'planted: 1==2');
+
+    // ---------- 名册：暂停这只按钮真的在 DOM 里、点得到、写着它是干什么的 ----------
+    eq(`名册：${ROSTER.length} 只控件一个都不缺`, g0.controls.filter(c => c.missing).map(c => c.id).join(','), '');
+    eq('名册：每只控件的中心都落在自己身上（先量 hit box 再谈点得到）',
+      g0.controls.filter(c => c.hit !== c.id).map(c => `${c.id}->${c.hit}`).join(','), '');
+    ck('名册：每只都有可见尺寸（>=28px 高，藏在幕布后面的不算点得到）',
+      g0.controls.every(c => c.h >= 28), JSON.stringify(g0.controls.map(c => [c.id, c.w, c.h])));
+    ck('名册：没有一只按钮写着空文案（读屏要有话说）',
+      g0.controls.every(c => c.text.length > 0), JSON.stringify(g0.controls.filter(c => !c.text).map(c => c.id)));
+    eq('名册：这一份名册就是 HUD 上的那一排（页面里没有第二只暂停按钮）',
+      await json(`[...document.querySelectorAll('button')].filter(b=>/暂停|继续/.test(b.textContent)).map(b=>b.id).join(',')`), 'btn-pause');
+    const s0 = await snap();
+    eq('开局：按钮写着「暂停」、aria-pressed=false、title 点名 (P)', `${s0.btn}|${s0.aria}|${s0.title}`, '暂停|false|暂停 (P)');
+    eq('开局：isPaused() 与按钮写的是同一件事（没有各说各话）', s0.paused, 'false');
+    eq('开局的盘就是官方例题那一张（seed 0 / tier off）', `${s0.tier}|${s0.seed}`, 'off|0');
+
+    // ---------- 先证"表在走"：没有这条正对照，下面所有的"没变"都能空转 ----------
+    const t0 = await snap();
+    await sleep(320);
+    const t1 = await snap();
+    ck('没暂停时表在走：两次读数之间 elapsedMs 涨了 >=150ms', t1.ms - t0.ms >= 150, `差 ${t1.ms - t0.ms}ms`);
+    const timeWas = t1.time;
+    await sleep(2200);
+    const t2 = await snap();
+    ck('HUD 那句话由 ticker 驱动：没暂停时 2.2 秒里 mm:ss 一定变', t2.time !== timeWas, `两读都是 ${t2.time}`);
+    ck('同一段时间 elapsedMs 也真的涨了（文字与计时同源）', t2.ms - t1.ms >= 2000, `差 ${t2.ms - t1.ms}ms`);
+
+    // 先落一子，让撤销/重摆这两条路在暂停里"有的可做却做不成"——否则挡的是空操作。
+    const cA = cells0[0];
+    await mouse(cA.x, cA.y);
+    const seeded = await snap();
+    eq(`真点击先落一刀（对照组前置：${cA.name} 已是气球）`, one(seeded, cA.i), 'W');
+    eq('这一子算一步', seeded.moves, '1');
+    await sleep(120);
+    const was = await snap();
+
+    // ---------- ① 停表：真指针按暂停 ----------
+    await clickId('btn-pause');
+    const p1 = await snap();
+    eq('按下暂停：isPaused() 翻真', p1.paused, 'true');
+    eq('按下暂停：按钮改口「继续」、aria-pressed=true、title 跟着改', `${p1.btn}|${p1.aria}|${p1.title}`, '继续|true|继续 (P)');
+    ck('按下暂停：盘面状态一个字没动（暂停本身不许改盘）', p1.st === was.st && p1.moves === was.moves, `${p1.st} / ${was.st}`);
+    const f0 = await snap();
+    await sleep(320);
+    const f1 = await snap();
+    eq('停表：暂停期间 elapsedMs 恒等（墙钟再走也不入账）', f1.ms - f0.ms, 0);
+    await sleep(2200);
+    const f2 = await snap();
+    eq('停表：HUD 那句话也不跳（停的不只是账面数，ticker 也停了）', f2.time, f1.time);
+    eq('停表：那 2.2 秒仍然一秒都没入账', f2.ms - f1.ms, 0);
+
+    // ---------- ② 冻盘：真指针、真按键、台面 API 三条路一起试 ----------
+    // pin 取在暂停已经落下去之后：下面这些"什么都没变"的窗口必须整条落在 paused 里，
+    // 拿点暂停之前的 was 当起点，就会把那一下点击的 CDP 往返（实测 3ms）算成暂停漏掉的账。
+    const pin = await snap();
+    const wall0 = Date.now();
+    const n = { pointer: 0, keys: 0, api: 0 };
+    const cellB = cells0.find(c => c.i !== cA.i);
+    await mouse(cellB.x, cellB.y); n.pointer++;          // 棋盘上另一格：cycle → place
+    await clickId('btn-w'); n.pointer++;                 // 数字面板：摆光标格
+    await clickId('btn-e'); n.pointer++;
+    await clickId('btn-undo'); n.pointer++;              // 撤销（history 里真有一步可退）
+    await clickId('btn-clear'); n.pointer++;             // 重摆（它以前还顺手把表拨回 0）
+    // 这就是本腿要防的那种用法：按下暂停，想多久想多久，再按「继续」一路摆到赢。
+    // 这 1.2 秒是墙钟里真的睡着的，不是断言之间的往返 —— 冻住的必须是数，界面藏起来不算。
+    await sleep(1200);
+    for (const k of ['ArrowRight', 'ArrowDown', ' ', 'Enter', 'w', 'b', 'x', 'z', 'Backspace']) { await key(k); n.keys++; }
+    const api = await json(`(()=>{const d=window.dosun,e=d.engine,g=d.game;
+      const other=${cellB.i},sel=${cells0.find(c => c.i !== cellB.i).i};
+      d.place(other,e.W); d.cycle(other); d.undo(); d.select(sel);
+      return {h:d.hint(),st:[...g.st].map(([i,v])=>i+':'+(v||'-')).join(',')};})()`);
+    n.api = 5;
+    const after = await snap();
+    const cuts = n.pointer + n.keys + n.api;
+
+    eq('冻盘：一整条电池跑完，盘面逐格指纹一个字没变', after.st, pin.st);
+    eq('冻盘：步数没动', after.moves, pin.moves);
+    eq('冻盘：已定格读数没动（重摆那一下也没把球清掉）', after.decided, seeded.decided);
+    eq('冻盘：光标没被方向键挪走', after.cursor, pin.cursor);
+    eq('冻盘：违反条数没动（挡不住盘，就谈不上冻住）', after.errs, pin.errs);
+    eq('冻盘：题面还是那一张（tier 与 seed 都没被换）', `${after.tier}|${after.seed}`, `${pin.tier}|${pin.seed}`);
+    eq('冻盘：暂停期间表针恒等 —— 一整条电池的墙钟都不入账', after.ms - pin.ms, 0);
+    const wall = Date.now() - wall0;
+    ck(`这条"什么都没发生"真的烧掉了墙钟（>=2 秒）：冻住的是数，不是把界面藏起来`, wall >= 2000, `wall=${wall}ms`);
+    eq(`挡回去的刀数 == 台账数（${n.pointer} 真点击 + ${n.keys} 真按键 + ${n.api} 台面 API）`, after.blocked - pin.blocked, cuts);
+    ck('台面那条 hint 在暂停里返回 null（不是半截读数、不是照念）', api.h === null, JSON.stringify(api.h));
+    ck('每一刀都被告知为什么：状态行写着「已暂停」与"没有落地"', /已暂停/.test(after.line) && /没有落地/.test(after.line), after.line);
+    const gPaused = await json(GEO(ROSTER));
+    eq('那句话走的是 aria-live=polite 的通道（读屏念得到，不是只画在 canvas 上）', gPaused.live, 'polite');
+    eq('挡的方式不是把控件弄灰：名册里一只都还可点', gPaused.controls.filter(c => c.disabled).map(c => c.id).join(','), '');
+
+    // ---------- ③ 解冻：同一刀这回落得下去，否则"挡"和"坏"读起来一样 ----------
+    await clickId('btn-pause');
+    const u1 = await snap();
+    eq('按「继续」解冻：isPaused() 回 false', u1.paused, 'false');
+    eq('按「继续」：按钮改回「暂停」、aria-pressed=false、title 也回 (P)', `${u1.btn}|${u1.aria}|${u1.title}`, '暂停|false|暂停 (P)');
+    const jump = u1.ms - pin.ms;
+    ck(`恢复不补账：暂停期间憋下的墙钟没有一次性灌进来（涨 ${jump}ms）`, jump >= 0 && jump < 500, `jump=${jump}ms / 暂停里睡了 ~${wall}ms 墙钟`);
+    const u2 = await snap();
+    await sleep(320);
+    const u3 = await snap();
+    ck('恢复后表重新走：elapsedMs 又开始涨', u3.ms - u2.ms >= 150, `差 ${u3.ms - u2.ms}ms`);
+    await mouse(cellB.x, cellB.y);
+    const u4 = await snap();
+    eq(`对照组：解冻之后同一格真的落地（${cellB.name} → 气球）`, one(u4, cellB.i), 'W');
+    eq('对照组：这一步算一步', u4.moves, u3.moves + 1);
+    eq('对照组：落地的那一刀不再被记账（blocked 不涨）', u4.blocked - u3.blocked, 0);
+    await clickId('btn-undo');
+    const u5 = await snap();
+    eq('解冻后撤销真的退了一步', u5.moves, u4.moves - 1);
+
+    // ---------- P 是暂停在这条腿上的另一只手 ----------
+    await key('p');
+    const k1 = await snap();
+    eq('真按 P 进暂停（isPaused 与按钮同一句话）', `${k1.paused}|${k1.btn}`, 'true|继续');
+    const k2 = await snap();
+    await key('w');
+    const k3 = await snap();
+    eq('暂停里 W 键没落地（键整条被 keydown 那道闸挡）', k3.st, k2.st);
+    eq('那一下被记成一刀，而不是"按键丢了"', k3.blocked - k2.blocked, 1);
+    await key('p');
+    const k4 = await snap();
+    eq('再按 P 解冻：P 自己永远是放行那只', `${k4.paused}|${k4.btn}`, 'false|暂停');
+
+    // ---------- 重摆不换题，所以也不许换表（这一条与暂停无关，是纪录的第二条免费腿） ----------
+    const off = await json(`(()=>{const o=window.dosun.engine.official();const a=[];for(const [i,v] of o.sol)a.push([i,v]);return a;})()`);
+    for (const [i, v] of off) await json(`window.dosun.place(${i},'${v}')`);
+    const won = await snap();
+    eq('台面把官方解答摆完：状态 won、判据 0 条违反', `${won.status}|${won.errs}`, 'won|0');
+    ck('赢局幕布揭开了（由几何作证，不是 hidden 属性）', won.veil === true, `veil=${won.veil}`);
+    const w0 = await snap();
+    await clickId('btn-clear');
+    const w1 = await snap();
+    eq('赢局之后重摆：回到可玩、球清干净、幕布揭开', `${w1.status}|${w1.decided}|${w1.veil}`, 'play|0|false');
+    ck('重摆不送免费时间：用时不减一秒（>= 赢的那一刻）', w1.ms >= w0.ms, `${w0.ms} -> ${w1.ms}`);
+    ck('重摆那句话现在不撒谎：写着计时继续走', /重摆/.test(w1.line) && /计时继续/.test(w1.line), w1.line);
+    const w2 = await snap();
+    await sleep(320);
+    const w3 = await snap();
+    ck('onWin 停掉的那只 ticker 被重摆重新接上（表针又开始涨）', w3.ms - w2.ms >= 150, `差 ${w3.ms - w2.ms}ms`);
+    const wt0 = w3.time;
+    await sleep(2200);
+    const wt1 = await snap();
+    ck('HUD 那句话也跟着恢复（跑的是同一只 ticker）', wt1.time !== wt0, `两读都是 ${wt1.time}`);
+
+    // ---------- 从暂停里点进官方例题：这一条以前会得到一块走不动的盘 ----------
+    await clickId('btn-pause');
+    const preMenu = await snap();
+    eq('带着暂停离开这一局：先确认现在确实是暂停的', preMenu.paused, 'true');
+    await clickId('btn-menu');
+    const geoMenu = await json(GEO(['btn-pause', 'btn-fullscreen', 'btn-sound', 'btn-w', 'btn-new', 'btn-clear']));
+    eq('回选档：顶部 HUD 那三只一直在（暂停不是只在牌桌上才有入口）',
+      geoMenu.controls.slice(0, 3).filter(c => c.missing || !c.shown).map(c => c.id).join(','), '');
+    eq('回选档：牌桌上的玩法控件确实收起了（选档页没有叠在棋盘上面）',
+      geoMenu.controls.slice(3).filter(c => c.shown).map(c => c.id).join(','), '');
+    await clickId('tier-off');
+    const o2 = await snap();
+    eq('点进官方例题：上一局的暂停没跟过来（这把死锁就是本腿要修的）', o2.paused, 'false');
+    eq('点进官方例题：按钮写着「暂停」、aria-pressed=false、title 回到 (P)', `${o2.btn}|${o2.aria}|${o2.title}`, '暂停|false|暂停 (P)');
+    ck('点进官方例题：上一局赢过的幕布没盖在这张盘上', o2.veil === false, `veil=${o2.veil}`);
+    ck('点进官方例题：这是一块新表（没带上上一局那十几秒）', o2.ms < 1500, `ms=${o2.ms}`);
+    const o3 = await snap();
+    await sleep(320);
+    const o4 = await snap();
+    ck('点进官方例题：表在走', o4.ms - o3.ms >= 150, `差 ${o4.ms - o3.ms}ms`);
+    const cells3 = (await json(GEO(['btn-pause']))).cells;
+    await mouse(cells3[0].x, cells3[0].y);
+    const o5 = await snap();
+    eq('点进官方例题：真点击真的落地（这盘解得开，不是锁着的）', one(o5, cells3[0].i), 'W');
+    eq('点进官方例题：落地的这一刀没被记账', o5.blocked - o4.blocked, 0);
+
+    await evaluate(`window.dosun.Store.reset()`);
+    eq('腿尾存档是干净的（这一腿赢过一次、写过一条纪录，不许留给下一形态）',
+      await json(`localStorage.getItem('dosun-cos:v1')`), null);
+    evidence({ frozenMs: f2.ms - f1.ms, batteryMs: after.ms - pin.ms, wall, jump, blocked: after.blocked - pin.blocked, cuts });
+    out({ leg: arg, cuts, controls: ROSTER.length, cells: cells0.length });
+  }
 }
+
 
 main().catch(err => {
   console.error('ERROR ' + (err.message || err));

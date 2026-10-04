@@ -56,7 +56,7 @@ let baseElapsed = 0;
 let ticker = 0;
 let notice = '';
 const say = s => { notice = s || ''; };
-const keys = { seen: 0, handled: 0, repeated: 0, last: '', by: {} };
+const keys = { seen: 0, handled: 0, blocked: 0, repeated: 0, last: '', by: {} };
 
 const clock = () => baseElapsed + (startedAt ? Date.now() - startedAt : 0);
 const fmtMs = ms => {
@@ -119,12 +119,16 @@ function startClock() {
 }
 function stopClock() { baseElapsed = clock(); startedAt = 0; clearInterval(ticker); ticker = 0; }
 
-// ---- 暂停：真的把仿真冻住，不是只翻一个布尔量 ----
+// ---- 暂停：冻住的是两样东西，表针和盘面 ----
 //
-// 这一档唯一持续推进的仿真是耗时时钟（startedAt 跟着 Date.now 走），ticker 是它唯一的心跳。
-// 暂停做两件真事：① stopClock() 把 baseElapsed 落账、startedAt 归 0、ticker 停 ——
-// 之后 clock() 恒等于 baseElapsed，墙钟再走多久也加不上去；② 恢复时 startClock() 重新起算，
-// startedAt 被复位成"从现在起"，所以恢复后的第一帧不会把暂停期间憋下的墙钟一次性灌进来（没有 dt 尖峰）。
+// 为什么盘面那一样必须跟着冻：本仓的纪录只按一个数排（`Store.record` 里那句 `r.ms < prev.ms`）。
+// 只停表、不停盘，暂停就成了免费的思考时间 —— 想多久都行，按「继续」再一路点到赢，用时照样顶掉旧纪录。
+// 所以 HUD 上那句「暂停」要两件事都做到才算数：
+// ① 停表：stopClock() 把 baseElapsed 落账、startedAt 归 0、ticker 停 —— 之后 clock() 恒等于
+//    baseElapsed，墙钟再走多久也加不上去；恢复时 startClock() 重新起算，startedAt 被复位成
+//    "从现在起"，所以恢复后的第一帧不会把暂停期间憋下的墙钟一次性灌进来（没有 dt 尖峰）。
+// ② 冻盘：摆子/撤销/选格/重摆/提示这五条写手一律原样退回，键盘那一路在 keydown 处整体挡（见那道闸）。
+//    挡的方式是"退回 + 在状态行说清楚为什么"，不是把控件弄灰 —— 按了没反应才是更难查的坏法。
 //
 // 空格在本仓已被"循环摆当前格"占用（见 keydown），抢来当暂停会把玩法键打死，所以只绑 P。
 let paused = false;
@@ -137,6 +141,15 @@ function setPaused(v) {
   el.pause.title = paused ? '继续 (P)' : '暂停 (P)';
 }
 function togglePause() { setPaused(!paused); }
+
+/** 暂停中挡一刀：挡回了什么要写在状态行里，并给台面留一个数得清的证人（keyHits().blocked）。 */
+function blockedWhilePaused(what) {
+  if (!paused) return false;
+  keys.blocked++;
+  say(`已暂停：${what}没有落地。暂停冻住表针，也冻住盘面 —— 按「继续」(P) 再继续。`);
+  syncAll();
+  return true;
+}
 
 function onWin() {
   stopClock();
@@ -160,6 +173,7 @@ function afterStep() {
 /** 摆一格：v 为 W/B/E/null。黑格会被 Game.set 挡回来，挡回来的那句话写进状态行。 */
 function place(i, v) {
   if (!game) return null;
+  if (blockedWhilePaused('这一手')) return null;
   const r = game.set(i, v);
   if (r.refused) { say(r.refused); syncAll(); return null; }
   if (r.noop) return null;
@@ -188,6 +202,7 @@ function cycle(i) {
 
 function select(i) {
   if (!game || i < 0) return false;
+  if (blockedWhilePaused('选格')) return false;
   const ok = game.select(i);
   say(ok ? '' : `${game.B.name(i)} 是题面黑格：选不中。`);
   syncAll();
@@ -196,6 +211,7 @@ function select(i) {
 
 function undo() {
   if (!game) return null;
+  if (blockedWhilePaused('撤销')) return null;
   const s = game.undo();
   if (!s) { say('没有可退的一步。'); syncAll(); return null; }
   say('');
@@ -203,10 +219,34 @@ function undo() {
   return s;
 }
 
+/** 提示走的是同一个铅笔。暂停期间也不念 —— 表停着、答案却在耳朵边一句句出来，那还是拿冻结换思路。 */
+function hint() {
+  if (!game) return null;
+  if (blockedWhilePaused('提示')) return null;
+  return game.hint();
+}
+
+/** 新局接手盘面时才重置：表针归零、冻盘解除、幕布掀开。
+ *  「没出货」那条出口**不**调用它 —— 那里 game 还是上一局那块盘、还挂在屏幕上，
+ *  把 paused / baseElapsed 抹成"新局"的样子等于给这块旧盘解了冻、还把表针清零，
+ *  赢下去记的是 ms≈0：这一轮要堵的正是这条路。 */
+function adoptFreshBoard() {
+  paused = false;
+  baseElapsed = 0;
+  el.pause.setAttribute('aria-pressed', 'false');
+  el.pause.textContent = '暂停';
+  el.pause.title = '暂停 (P)';
+  el.winVeil.hidden = true;
+}
+
 function begin({ tier = DEFAULT_TIER, seed = null } = {}) {
+  // 以前只有下面 tier 那条重置 paused / winVeil，官方例题那一档只 startClock()：从暂停里点进例题，
+  // 得到的是一块表针在走、盘面却被上一局的暂停锁死的盘（按钮写着「继续」、title 也停在「继续 (P)」）；
+  // 上一局赢过的幕布也一样还盖在例题上。重置因此提成一处，但它只能落在**真接手了新盘**的那两条分支上。
   if (tier === 'off') {
     game = new Game(officialPuzzle());
     show('game');
+    adoptFreshBoard();
     startClock();
     say('');
     syncAll();
@@ -225,12 +265,8 @@ function begin({ tier = DEFAULT_TIER, seed = null } = {}) {
   }
   Store.setCursor(puzzle.seed + 1);
   game = new Game(puzzle);
-  baseElapsed = 0;
-  paused = false;          // 新一局永远从"没暂停"开始：startClock 之前必须先把闸门打开
-  el.pause.setAttribute('aria-pressed', 'false');
-  el.pause.textContent = '暂停';
-  el.winVeil.hidden = true;
   show('game');
+  adoptFreshBoard();
   startClock();
   say('');
   syncAll();
@@ -316,11 +352,14 @@ $('#btn-u').addEventListener('click', () => game && place(game.cursor, null));
 $('#btn-undo').addEventListener('click', undo);
 $('#btn-clear').addEventListener('click', () => {
   if (!game) return;
+  if (blockedWhilePaused('重摆')) return;
   game.clear();
   el.winVeil.hidden = true;
-  baseElapsed = 0;
-  startedAt = Date.now();
-  say('重摆：题面（黑格与区界）一个字没动，只清掉摆上去的球。');
+  // 重摆不换题：题面（黑格与区界）一个字没动，玩家对这张盘知道得比上一秒更多。
+  // 把表针拨回 0 就等于给"本档最快"这条读数开了第二条腿 —— 想刷新纪录就重摆一次，
+  // 表从零开始、答案已经在手里。所以这里只清盘，计时继续走；赢之后表停过，这里再把它接上。
+  if (!startedAt) startClock();
+  say('重摆：题面（黑格与区界）一个字没动，只清掉摆上去的球；这一局的计时继续走。');
   syncAll();
 });
 $('#btn-new').addEventListener('click', () => begin({ tier: game ? game.puzzle.tier : DEFAULT_TIER }));
@@ -344,6 +383,10 @@ window.addEventListener('keydown', ev => {
   if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
   if (!game) return;
   const k = ev.key;
+  // 暂停期整体不收玩法键：一条一条地在每个写手里加闸，等于指望下一个按键的人记得加。
+  // 放在这一层，将来新加的玩法键默认就被冻住；只放行 P（它就是用来解冻的那一只）。
+  // 全屏的 F 走它自己那个 listener（不碰盘面），这里不拦。
+  if (paused && k !== 'p' && k !== 'P') { blockedWhilePaused(`「${k}」这一键`); ev.preventDefault(); return; }
   if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight') {
     moveCursor(k); ev.preventDefault(); keys.handled++;
   } else if (k === ' ' || k === 'Enter') {
@@ -385,7 +428,7 @@ window.dosun = {
   keyHits: () => ({ ...keys, by: { ...keys.by } }),
   state: () => (game ? { ...game.counts(), moves: game.moves, cursor: game.cursor, status: game.status, tier: game.puzzle.tier, seed: game.puzzle.seed, errs: game.errs(), elapsedMs: clock() } : null),
   winFacts: () => (game ? game.winFacts() : null),
-  hint: () => (game ? game.hint() : null),
+  hint,
   Store,
   engine: { mkBoard, official, TIERS, TIERS_MEASURED, DEFAULT_TIER, tierOf, tierFor, W, B, E, count, pencil, initCand, sameSol, shipOne, boardKey, fnv1a, DIG, Game, officialPuzzle, build },
 };

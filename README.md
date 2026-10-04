@@ -33,12 +33,21 @@ npm run serve        # 零依赖静态服务 → http://127.0.0.1:5273/（packag
 重摆 / 换一局 四个按钮（`index.html:88-97`）。**换一局取的 seed 来自存档里的自增游标，绝不取墙钟**
 （`js/main.js:4`）——页面上印着 "seed 7" 就必须能按 7 复现这一局。
 
+**暂停（P 键或「暂停」按钮）冻住的是两样东西：表针，和盘面**。本仓的纪录只按 `ms` 一个数排
+（`js/main.js:45`），只停表不停盘的暂停就成了免费的思考时间 —— 想多久都行，按「继续」再一路摆到赢，
+用时照样顶掉旧纪录。所以暂停期间 摆子 / 撤销 / 选格 / 重摆 / 提示 这五条写手一律原样退回，
+键盘那一路在 `keydown` 处整体挡（只放行 P，它就是用来解冻的那一只，`js/main.js:389`），
+每一刀都挡在状态行里说明原因（`js/main.js:146`），而不是把控件弄灰。
+重摆不换题（黑格与区界一个字不动），所以也不换表。
+换一局要是这一档连着几号种子都没出货，屏幕上留着的还是上一局那块盘：那种时候不接手新局，也就不会顺手
+抹掉它的表和它的冻（新局重置只落在真接手新盘的那两处，`js/main.js:233`）。
+
 ## 验证：四条命令与它们本轮的读数
 
-下面每一个数都是本仓本轮（2026-10-02）跑出来的，括号里是打印它的那行代码。
+下面每一个数都是本仓本轮（2026-10-04）跑出来的，括号里是打印它的那行代码。
 **散文不再靠人抄**：压轴那道逻辑闸 `tools/doctest.mjs`（`npm run doctest`）把这一节和 `DESIGN.md` 里的
 每一个"现值"对回代码——档位表、端口、计数器预算、CI 门禁名单、`SAMPLE` 旋钮、每条闸本轮自己报出的
-断言条数。正则解析不到东西同样算红（"0 行"不是绿灯，见 `tools/doctest.mjs:89` 的 `D1a`）。它自己也被这条规矩量着——
+断言条数。正则解析不到东西同样算红（"0 行"不是绿灯，见 `tools/doctest.mjs:100` 的 `D1a`）。它自己也被这条规矩量着——
 覆盖表多一行，它就多一条断言，那一个数由本轮现算（`D14c`）。
 **它报全绿只说明这一轮没有东西坏，没说这把闸会不会红**：`tools/sabotage.mjs`（`npm run sabotage`）把每一类谎
 各写回一份临时副本再跑一次 doctest，断言它必须点名变红——刀谱写在下面最后一节那张台账表里，任何人 clone 下来都能复跑。
@@ -46,14 +55,14 @@ npm run serve        # 零依赖静态服务 → http://127.0.0.1:5273/（packag
 ```bash
 npm run check        # → check OK（package.json:7 逐文件 node --check，含 server.cjs 与 tools）
 npm test             # → logic: PASS（tools/verify.sh:57）+ 部署集双闸（tools/verify.sh:64-66），rc=0
-npm run verify       # → === ALL GREEN ===（tools/verify.sh:410），rc=0（退出码在 :411）
-npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:378-405）
+npm run verify       # → === ALL GREEN ===（tools/verify.sh:415），rc=0（退出码在 :416）
+npm run selftest     # → rc=1，五份报告各点名吃下一条种下的错（tools/verify.sh:383-410）
 ```
 
 - **逻辑闸 `npm test`**：七道，名单只有一份——`tools/verify.sh:31` 的 `GATES`，`doctest` 排在**最后**
   是刻意的：它读前面每条闸本轮自己打印的条数（`tools/verify.sh:44-48` 把每条闸的 stdout 落到
   `_tmp-verify-logic/<gate>.log` 并写进 `_tmp-verify-logic/gate-rows.txt`）。
-  逻辑闸本轮合计 229 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 13 doctest 61
+  逻辑闸本轮合计 236 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 19 doctest 62
   那一句里的七个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`；doctest 自己那一个由 `D14c` 对），**不是手抄的**。
   `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:69` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
@@ -62,8 +71,8 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
   这两步原先只坐在 ci.yml 里，而本仓的 `npm test` 就是 `bash tools/verify.sh`（`package.json:15`），
   它在 `tools/verify.sh:68` 那条 `BROWSER` 早退里 `exit $rc` 就走完了——块挂在文件尾巴时
   默认整闸一次都碰不到它，"只有 CI 查"这个洞只是换了个位置。所以现在块排在早退**之前**、
-  红并进 `rc`，浏览器那一路再由 `FAILED=$rc`（`tools/verify.sh:188`）把它带到结论横幅
-  （`tools/verify.sh:410`）与 `exit $FAILED`（`tools/verify.sh:411`）之前——横幅在后面，
+  红并进 `rc`，浏览器那一路再由 `FAILED=$rc`（`tools/verify.sh:189`）把它带到结论横幅
+  （`tools/verify.sh:415`）与 `exit $FAILED`（`tools/verify.sh:416`）之前——横幅在后面，
   它的红先把 `=== ALL GREEN ===` 压成 `=== FAILURES ABOVE ===`，不会被盖住。
 - **出题台阶 `npm run probe`**：口径 `ARM=greedy MAXMUT=40 cap=400000 maxSol=400`，每档 20 次尝试、
   `SEED=1`（`tools/generator-probe.mjs:24` 的默认值、`:31` 的口径行）。
@@ -76,15 +85,17 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
   9473 而不是族内镜像位 9373：2026-09-30 实测（`tools/verify.sh:121-125` 的 lsof 取证）9373 上坐着
   兄弟车道 skyscraper 的一个长期 Chrome，attach 到别人的浏览器那种绿比红更糟，pre-flight 直接拒绝抢端口
   （`tools/verify.sh:204-207`）。
-  闸的形状：腿 3 条 · 报告 4 份 · 形态 2 种 · 合计 8 份（`tools/verify.sh:84` 的 `LEGS`、
-  `:88-95` 的 `reports_of`、`:133` 的 `SHAPES`；报告名单只有 `reports_of` 这一处，分母由它现算）。
-  本轮逐报告条数：engine 26 / menu 45 / gen 69 / play 84，每形态 224 条 · 合计 448 条，逐形态完全相同
-  （对表打印在 `tools/verify.sh:313`，落到 `_tmp-verify/counts.txt`）。
+  闸的形状：腿 4 条 · 报告 5 份 · 形态 2 种 · 合计 10 份（`tools/verify.sh:84` 的 `LEGS`、
+  `:88-96` 的 `reports_of`、`:134` 的 `SHAPES`；报告名单只有 `reports_of` 这一处，分母由它现算，
+  连 `tools/doctest.mjs` 里那一份也是从这两行**现读**出来的——腿加了、文档没改，它就红）。
+  本轮逐报告条数：engine 26 / menu 45 / gen 69 / play 84 / pause 73，每形态 297 条 · 合计 594 条，逐形态完全相同
+  （对表打印在 `tools/verify.sh:318`，落到 `_tmp-verify/counts.txt`）。
   本地根 `/`、本地 Pages 前缀形态 `/z-biz-game-dosun-cos/`，`BASE_URL=…` 再追加**已部署站点**
-  （`tools/verify.sh:136` 把它并入同一个形态循环，形态数由 `${#SHAPES[@]}` 现取，不是写死的 2）：
-  第三形态真跑：3 种形态 × 4 份报告 = 12 份读数（本轮 224/224/224，见 `DESIGN.md`）。
-  "逐报告条数"这四个数不只自洽——`npm run verify` 跑完浏览器腿后拿本轮 `counts.txt` 再比一次
-  （`tools/verify.sh:370` 调 `tools/doctest.mjs --counts`），少一份、多一份、两份不等量都红。
+  （`tools/verify.sh:137` 把它并入同一个形态循环，形态数由 `${#SHAPES[@]}` 现取，不是写死的 2）：
+  第三形态真跑：3 种形态 × 5 份报告 = 15 份读数（本轮这一笔先在本地两种形态上跑，297/297；
+  等它部署到 Pages 之后再对线上复跑第三形态，见 `DESIGN.md`）。
+  "逐报告条数"这五个数不只自洽——`npm run verify` 跑完浏览器腿后拿本轮 `counts.txt` 再比一次
+  （`tools/verify.sh:375` 调 `tools/doctest.mjs --counts`），少一份、多一份、两份不等量都红。
   CI 只跑前两种形态（`npm run verify` 不带 `BASE_URL`）——第三种要等部署完成才存在，只能在本地对线上跑。
   - `engine` 腿在页面台面里重放官方 4×4 例题，并断言页面拿到的是**引擎模块本身**
     （`tools/scenarios.js:57-59`）——胜负只由 `js/engine/rules.js` 的 R1/R2/R3 判，UI 没有第二套规则。
@@ -94,10 +105,17 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
     同一种子在两边必须长同一张盘。
   - `play` 腿用真指针事件下子，每次点击前先断言命中盒到得了那一格；填满整盘**不算赢**
     （判据 `errs ≠ 0` 就不给过关），只有官方答案被真点击摆出来才触发胜利。
+  - `pause` 腿量的就是"暂停冻住两样东西"这句话：先正对照证表在走（两次读数差 ≥150ms、
+    ticker 那句 mm:ss 在 2.2 秒里一定变），再按真指针进暂停，跑一条 **19 刀的电池**
+    （5 真点击 + 9 真按键 + 5 台面 API，含 1.2 秒真的睡着的"思考时间"），要求逐格指纹 / 步数 /
+    光标 / 违反条数 / 题面一个字不动、`elapsedMs` 恒等（这两个读数由腿自己印在 `EVID` 行的
+    `wall=` / `batteryMs=` 上，跑一次印一次，散文不抄它）、挡回的刀数等于台账数；
+    再按「继续」，同一格这回落得下去（对照组），且恢复的第一帧不补账
+    （`jump<500ms`，没有 dt 尖峰）。名册 11 只控件逐个先量命中盒再点。
 - **闸必须能红**：`npm run selftest` 时 `scenarios.js` 与 `playtest.cjs` 各往每一条腿塞一条注定错的
-  `1==2`，本轮四条腿（engine/menu/gen/play）各红一次、`rc=1`。CI 同时要求 `rc≠0` **和**日志里有 `FAIL`
+  `1==2`，本轮五份报告（engine/menu/gen/play/pause）各红一次、`rc=1`。CI 同时要求 `rc≠0` **和**日志里有 `FAIL`
   （`.github/workflows/ci.yml:68`、`:69`）：一条没点名的红不算红。
-  另一侧，只红不点名到腿也不行（`tools/verify.sh:399-401`：planted 腿数少于名单长度就判失败）。
+  另一侧，只红不点名到腿也不行（`tools/verify.sh:404-406`：planted 腿数少于名单长度就判失败）。
 
 ## CI 覆盖表：哪条命令在哪个 job 里被跑
 
@@ -109,7 +127,7 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 | `npm run check` | check | `Syntax check every source` | 每个源文件 parse 得过 |
 | `npm test` | check | `Logic gates` | 七道逻辑闸（含文档对表与破坏试验台账） |
 | `npm run sabotage` | check | `Sabotage ledger proves doctest can go red` | 台账每一把刀都必须把 doctest 弄红 |
-| `npm run verify` | browser | `Browser gate, both local URL shapes` | 两种 URL 形态 × 三条腿 |
+| `npm run verify` | browser | `Browser gate, both local URL shapes` | 两种 URL 形态 × 四条腿 |
 | `npm run selftest` | browser | `Gate proves it can fail` | 闸必须能红，且 rc≠0 与 FAIL 同时成立 |
 
 ## 七档菜单：印出来的数字与本轮的读数
@@ -140,7 +158,7 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 菜单停在 6×6 区8，**出局理由印在页面上**（`index.html:40-43`）：本轮造成 7/20 = 35%，而且 20 次尝试里
 只有 2 张盘被证成唯一——按一次"换一局"要平均刷 5 次以上才出货。这是能玩性的下限，不是难度上限
 （`js/engine/tiers.js:24-28`）。页面上那句话现在不写百分数，它指向各档自己那一行的读数
-（`js/main.js:29`、`js/main.js:245`）——少一个散文自带的第二个出处。
+（`js/main.js:30`、`js/main.js:332`）——少一个散文自带的第二个出处。
 
 7×7 也测了，读数在仓里可复跑（`tools/generator-probe.mjs:122-145` 的观测段，默认 `OBS=6`），
 并且**落在仓里的一份夹具上**（`tools/fixtures/obs-7x7.json`，由 `tools/generator-probe.mjs --bless-obs` 打印、
@@ -174,9 +192,17 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 | K2 | 文档把端口那句删掉 | `README.md` | `端口：本地 5273` | `端口写在别处` | `D4` | `node tools/doctest.mjs` | 1 |
 | K3 | 代码侧的现值动一格（计数器预算） | `js/engine/tiers.js` | `cap: 400000` | `cap: 400001` | `D5 文档写的预算` | `node tools/doctest.mjs` | 1 |
 | K4 | 闸的名单被改（`GATES` 里换一个名） | `tools/verify.sh` | `generator-probe` | `probe-renamed` | `D14a` | `node tools/doctest.mjs` | 1 |
+| K5 | 文档里那条 `path:NN` 指到了空行（行号漂走） | `README.md` | `tools/verify.sh:57` | `tools/verify.sh:417` | `D9 每一条` | `node tools/doctest.mjs` | 1 |
+| K6 | 形状那句的腿数被抄少一条 | `README.md` | `闸的形状：腿 4 条` | `闸的形状：腿 3 条` | `D3 文档写的腿数` | `node tools/doctest.mjs` | 1 |
+| K7 | 有人把新局重置裸写回 `begin()` 里 | `js/main.js` | `  const spec = tierFor(tier);` | `  paused = false; const spec = tierFor(tier);` | `D20 新局重置只落在` | `node tools/doctest.mjs` | 1 |
 
 K1、K2 是上一轮那条车道在 scratch 里做过、但没留在树上的两次试验（当时改的是同一个数字、同一句话）；
-K3、K4 打在代码侧与接线侧的现值上。四把刀各点一族，`tools/sabotage.mjs` 逐条打印它命中的 FAIL 行原文。
+K3、K4 打在代码侧与接线侧的现值上；K5、K6、K7 打在**本轮真的发生过**的三类坏上——
+`js/main.js` 被加过之后，README/DESIGN 里有一批 `path:NN` 集体往后漂了一格，而"越界才算红"的
+老 `D9` 一声不响（现在它还会把指到空行、整行只剩块闭合符的引用判红，K5 打的就是这一条）；
+加一条 `pause` 腿时 `D3` 先红后绿，K6 就是那一类"形状那几个数被抄少一条"；
+把新局重置往 `begin()` 头上一贴（第一版就是这么写的，它顺带把"没出货"那条出口的旧盘也解冻清零），
+K7 打的就是这一类裸写回来的重置。七把刀各点一族，`tools/sabotage.mjs` 逐条打印它命中的 FAIL 行原文。
 
 ## 上线的到底是哪一批文件
 
