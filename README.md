@@ -45,9 +45,9 @@ npm run serve        # 零依赖静态服务 → http://127.0.0.1:5273/（packag
 
 ```bash
 npm run check        # → check OK（package.json:7 逐文件 node --check，含 server.cjs 与 tools）
-npm test             # → logic: PASS（tools/verify.sh:57），rc=0
-npm run verify       # → === ALL GREEN ===（tools/verify.sh:405），rc=0（退出码在 :406）
-npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:368-395）
+npm test             # → logic: PASS（tools/verify.sh:57）+ 部署集双闸（tools/verify.sh:64-66），rc=0
+npm run verify       # → === ALL GREEN ===（tools/verify.sh:410），rc=0（退出码在 :411）
+npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（tools/verify.sh:378-405）
 ```
 
 - **逻辑闸 `npm test`**：七道，名单只有一份——`tools/verify.sh:31` 的 `GATES`，`doctest` 排在**最后**
@@ -55,13 +55,16 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
   `_tmp-verify-logic/<gate>.log` 并写进 `_tmp-verify-logic/gate-rows.txt`）。
   逻辑闸本轮合计 229 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 13 doctest 61
   那一句里的七个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`；doctest 自己那一个由 `D14c` 对），**不是手抄的**。
-  `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:60` 的 `browser: SKIP`），
+  `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:69` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
-- **产物闸（部署集）走 `npm run verify` 的收尾**：`node tools/deploy-set.mjs` 加它自己的台架
-  （`tools/verify.sh:402-404`）。它查 assemble 出来的清单/`sw.js`/图标与页面实际要取的那些 URL 同源，
-  不碰 Chrome、不读页面。这两步原先只坐在 ci.yml 里——本地整闸一次都不跑，于是「本地全绿、
-  线上 404 自己的文件」这一类坏法只有部署之后才看得见。它排在结论横幅**之前**，
-  所以它的红会先把 `=== ALL GREEN ===` 压成 `=== FAILURES ABOVE ===`，不会被盖住。
+- **产物闸（部署集）两条出口都跑**：`node tools/deploy-set.mjs` 加它自己的台架（`tools/verify.sh:64-66`）。
+  它查 assemble 出来的清单/`sw.js`/图标与页面实际要取的那些 URL 同源，不碰 Chrome、不读页面。
+  这两步原先只坐在 ci.yml 里，而本仓的 `npm test` 就是 `bash tools/verify.sh`（`package.json:15`），
+  它在 `tools/verify.sh:68` 那条 `BROWSER` 早退里 `exit $rc` 就走完了——块挂在文件尾巴时
+  默认整闸一次都碰不到它，"只有 CI 查"这个洞只是换了个位置。所以现在块排在早退**之前**、
+  红并进 `rc`，浏览器那一路再由 `FAILED=$rc`（`tools/verify.sh:188`）把它带到结论横幅
+  （`tools/verify.sh:410`）与 `exit $FAILED`（`tools/verify.sh:411`）之前——横幅在后面，
+  它的红先把 `=== ALL GREEN ===` 压成 `=== FAILURES ABOVE ===`，不会被盖住。
 - **出题台阶 `npm run probe`**：口径 `ARM=greedy MAXMUT=40 cap=400000 maxSol=400`，每档 20 次尝试、
   `SEED=1`（`tools/generator-probe.mjs:24` 的默认值、`:31` 的口径行）。
   本轮合计 7 档 · 造成 111 · 唯一 52 · 其中铅笔推满 52 · 可供验谎 59（`tools/generator-probe.mjs:86`）。
@@ -69,19 +72,19 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
   铅笔的解与计数器的唯一解从不打架（`:77` 打架=0）、以及配对给 liar 红线的反空转断言——
   样本里必须真有没证成唯一的盘可验谎，`:75` 断言 造成−唯一 ≥ 3，本轮 111−52 = 59 张。
 - **浏览器闸 `npm run verify`**：真 Chrome + CDP，读 DOM 文本/几何、真 `Input.dispatch*` 事件与引擎读数，
-  不读内部标志位。端口：本地 5273 · CDP 9473（`tools/verify.sh:65-66`、`package.json:14`）——
-  9473 而不是族内镜像位 9373：2026-09-30 实测（`tools/verify.sh:111-115` 的 lsof 取证）9373 上坐着
+  不读内部标志位。端口：本地 5273 · CDP 9473（`tools/verify.sh:75-76`、`package.json:14`）——
+  9473 而不是族内镜像位 9373：2026-09-30 实测（`tools/verify.sh:121-125` 的 lsof 取证）9373 上坐着
   兄弟车道 skyscraper 的一个长期 Chrome，attach 到别人的浏览器那种绿比红更糟，pre-flight 直接拒绝抢端口
-  （`tools/verify.sh:194-197`）。
-  闸的形状：腿 3 条 · 报告 4 份 · 形态 2 种 · 合计 8 份（`tools/verify.sh:74` 的 `LEGS`、
-  `:78-85` 的 `reports_of`、`:123` 的 `SHAPES`；报告名单只有 `reports_of` 这一处，分母由它现算）。
+  （`tools/verify.sh:204-207`）。
+  闸的形状：腿 3 条 · 报告 4 份 · 形态 2 种 · 合计 8 份（`tools/verify.sh:84` 的 `LEGS`、
+  `:88-95` 的 `reports_of`、`:133` 的 `SHAPES`；报告名单只有 `reports_of` 这一处，分母由它现算）。
   本轮逐报告条数：engine 26 / menu 45 / gen 69 / play 84，每形态 224 条 · 合计 448 条，逐形态完全相同
-  （对表打印在 `tools/verify.sh:303`，落到 `_tmp-verify/counts.txt`）。
+  （对表打印在 `tools/verify.sh:313`，落到 `_tmp-verify/counts.txt`）。
   本地根 `/`、本地 Pages 前缀形态 `/z-biz-game-dosun-cos/`，`BASE_URL=…` 再追加**已部署站点**
-  （`tools/verify.sh:126` 把它并入同一个形态循环，形态数由 `${#SHAPES[@]}` 现取，不是写死的 2）：
+  （`tools/verify.sh:136` 把它并入同一个形态循环，形态数由 `${#SHAPES[@]}` 现取，不是写死的 2）：
   第三形态真跑：3 种形态 × 4 份报告 = 12 份读数（本轮 224/224/224，见 `DESIGN.md`）。
   "逐报告条数"这四个数不只自洽——`npm run verify` 跑完浏览器腿后拿本轮 `counts.txt` 再比一次
-  （`tools/verify.sh:360` 调 `tools/doctest.mjs --counts`），少一份、多一份、两份不等量都红。
+  （`tools/verify.sh:370` 调 `tools/doctest.mjs --counts`），少一份、多一份、两份不等量都红。
   CI 只跑前两种形态（`npm run verify` 不带 `BASE_URL`）——第三种要等部署完成才存在，只能在本地对线上跑。
   - `engine` 腿在页面台面里重放官方 4×4 例题，并断言页面拿到的是**引擎模块本身**
     （`tools/scenarios.js:57-59`）——胜负只由 `js/engine/rules.js` 的 R1/R2/R3 判，UI 没有第二套规则。
@@ -94,7 +97,7 @@ npm run selftest     # → rc=1，四条腿各点名吃下一条种下的错（t
 - **闸必须能红**：`npm run selftest` 时 `scenarios.js` 与 `playtest.cjs` 各往每一条腿塞一条注定错的
   `1==2`，本轮四条腿（engine/menu/gen/play）各红一次、`rc=1`。CI 同时要求 `rc≠0` **和**日志里有 `FAIL`
   （`.github/workflows/ci.yml:68`、`:69`）：一条没点名的红不算红。
-  另一侧，只红不点名到腿也不行（`tools/verify.sh:389-391`：planted 腿数少于名单长度就判失败）。
+  另一侧，只红不点名到腿也不行（`tools/verify.sh:399-401`：planted 腿数少于名单长度就判失败）。
 
 ## CI 覆盖表：哪条命令在哪个 job 里被跑
 
@@ -205,5 +208,5 @@ X9 CI 不跑闸），要求每一刀都让闸**点名**变红；X10 是阴性对
 的假路径，闸必须仍然绿、条数仍然 `29`、rows 仍然 `47`。靶子从 `DEPLOY_SET_DUMP=1`
 的出处表现挑，所以页面改了、仓与仓不同，台架跟着走。
 
-`npm run deploy-set` 与 `npm run deploy-set:selftest` 是同两条命令的本地入口；把它们接进本仓
-那条浏览器 one-shot（`tools/verify.sh`）还欠着——那道脚本的腿名单与条数钉是每个仓自己的形状。
+`npm run deploy-set` 与 `npm run deploy-set:selftest` 是同两条命令的本地入口；这两步也已经接进本仓
+那条整闸（`tools/verify.sh:64-66`，接法与为什么要接在 `BROWSER` 早退之前见 §门禁清单 那条产物闸）。

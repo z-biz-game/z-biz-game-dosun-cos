@@ -56,8 +56,18 @@ done
 printf '\ngate-rows（本轮每条闸自己报的条数）：%s\n' "$(tr '\n' ' ' <"$GATE_ROWS")"
 printf 'logic: %s（闸：%s）\n' "$([ $rc -eq 0 ] && echo PASS || echo FAIL)" "$GATES"
 
+# 部署集闸：ci.yml 跑这两步、本地整闸以前一次都不跑。缺这一步就是「本地全绿、线上 404 自己的
+# manifest / sw.js / 图标」这一整类坏法。它不碰 Chrome，也不读页面，纯查产物。
+# 必须排在下面那条 BROWSER 早退之前：`npm test` 那条路走 `exit $rc`，块挂在文件尾巴时
+# 默认整闸一次都不会跑到它（这正是"只有 CI 查"的那个洞，只是换了个位置）。
+# 红并进 rc：浏览器那一路的 FAILED=$rc 才带得动它走到横幅与 exit。
+echo "=== deploy-set ==="
+node tools/deploy-set.mjs || rc=1
+node tools/deploy-set-selftest.mjs || rc=1
+
 if [ "${BROWSER:-0}" != 1 ]; then
   echo "browser: SKIP（npm test 只跑逻辑闸；浏览器闸走 BROWSER=1 / npm run verify）"
+  [ $rc -eq 0 ] && echo "=== ALL GREEN ===" || echo "=== FAILURES ABOVE (rc=${rc}) ==="
   exit $rc
 fi
 
@@ -395,12 +405,7 @@ if [ "$SELF" = 1 ]; then
 fi
 
 kill $WD 2>/dev/null
-# 部署集闸：ci.yml 跑这两步、本地整闸以前一次都不跑。缺这一步就是「本地全绿、线上 404 自己的
-# manifest / sw.js / 图标」这一整类坏法。它不碰 Chrome，也不读页面，纯查产物。
-# 排在横幅之前：横幅在它后面，红才不会被先打印出去的 ALL GREEN 盖住；也只在 BROWSER=1 这一路跑——
-# 上面 `npm test` 那条早退路径按仓里的话术只跑逻辑闸，这一对是产物闸，走 CI 的 npm run verify。
-echo "=== deploy-set ==="
-node tools/deploy-set.mjs || FAILED=1
-node tools/deploy-set-selftest.mjs || FAILED=1
+# 部署集双闸不在这里跑：它排在 BROWSER 早退之前（两条出口都要跑到），红已经并进 rc，
+# 而 FAILED=$rc 把它带到这一行的横幅与下面的 exit。这里再跑一遍就是第二次派生。
 [ $FAILED -eq 0 ] && echo "=== ALL GREEN ===" || echo "=== FAILURES ABOVE (rc=$FAILED) ==="
 exit $FAILED
