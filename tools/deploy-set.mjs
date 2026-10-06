@@ -92,6 +92,11 @@ const present = (r) => {
   return fs.existsSync(f) && fs.statSync(f).size > 0;
 };
 
+// 本站前缀只认仓里那一份声明：README 的 https://…github.io/<slug>。不认 basename(ROOT)——slug
+// 与目录名可以不同，台架的副本目录名更是随路径漂，拿目录名推前缀等于让闸在副本上天生红。
+const PAGES = ((readIf(path.join(ROOT, 'README.md')) || '')
+  .match(/https?:\/\/[A-Za-z0-9._-]+\.github\.io\/[A-Za-z0-9._-]+/) || [])[0] || '';
+
 // ---- B：引用可达 ----
 // 引用不靠手打名单：只有一个入口，index.html 声明的取径；走多远由取径自己决定——每条引用
 // 解析出来是个 .js/.css 就把它也当作一站，模块图于是自己把整条链交出来。手打名单漏扫的时候
@@ -209,13 +214,16 @@ if (mf) {
     return n >= 192 && n < 512;
   });
   ok(small.length > 0, 'R6 manifest 有 192~511 的图标（触屏主屏要的那一档）', '');
-  // og:image 只在页面上确实写了这句话时成立：绝对 URL、并且指的就是产物里那一张。
+  // og:image 只在页面上确实写了这句话时成立：绝对 URL、指的就是**本站前缀下**的那一张，
+  // 而那张图真在产物里。相对写法（assets/og.png）是这一条最初要抓的缺陷：抓取器读的是别人
+  // 页面上的字符串，不会替 Pages 补 /<slug>/。但"绝对"本身不够——前缀抄错一个字母就是 404
+  // 的卡片，所以拿 README 那份声明当尺子，量的不是"像不像绝对 URL"而是"是不是本站那一张"。
   const og = html.match(/property="og:image"\s+content="([^"]+)"/);
   if (og) {
     const v = og[1].trim();
-    const p = v.replace(/^https?:\/\/[^/]+/, '').replace(/^\//, '');
-    ok(v.startsWith('https://') && present(decodeURIComponent(p)),
-      'R7 og:image 是绝对 URL 且那张图在产物里', `og:image=${v}`);
+    const detail = `og:image=${v} · README 声明的前缀 ${PAGES || '(解析不到)'}`;
+    ok(v.startsWith(PAGES + '/') && present(decodeURIComponent(v.slice(PAGES.length + 1))),
+      'R7 og:image 是本站绝对 URL 且那张图在产物里', detail);
   }
 }
 

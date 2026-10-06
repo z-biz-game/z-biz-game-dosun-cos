@@ -236,3 +236,7 @@ X9 CI 不跑闸），要求每一刀都让闸**点名**变红；X10 是阴性对
 
 `npm run deploy-set` 与 `npm run deploy-set:selftest` 是同两条命令的本地入口；这两步也已经接进本仓
 那条整闸（`tools/verify.sh:64-66`，接法与为什么要接在 `BROWSER` 早退之前见 §门禁清单 那条产物闸）。
+
+## 在线试玩
+
+<https://z-biz-game.github.io/z-biz-game-dosun-cos/>（`main` 分支推送即自动部署）
