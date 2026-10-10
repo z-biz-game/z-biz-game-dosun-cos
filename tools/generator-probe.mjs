@@ -11,9 +11,10 @@
 // 另外报一条软读数：唯一盘里被铅笔推满的比例（判据 1 的反向）。原型在 800+120 张盘上是 100%，
 // 这里同样按硬门盯（FLOOR 默认 0.95）——掉了就是说命名规则不够用了。
 //
-// 跑法：node tools/generator-probe.mjs [TIERS=s6,h6] [--bless-tiers]
+// 跑法：node tools/generator-probe.mjs [TIERS=s6,h6] [--bless-tiers] [--bless-obs]
 // 环境变量：SAMPLE（每档尝试次数，默认 20）SEED（默认 1）FLOOR（推满比例下限）ARM（挖法）
 //           OBS（7x7 观测段的尝试次数，默认 6）
+import { readFileSync } from 'node:fs';
 import { sameSol } from '../js/engine/pencil.js';
 import { shipAttempt } from '../js/engine/generate.js';
 import { TIERS, DIG, TIERS_MEASURED } from '../js/engine/tiers.js';
@@ -86,7 +87,9 @@ g.line(`合计 ${tiers.length} 档 · 造成 ${madeAll} · 唯一 ${uniqAll} · 
 
 // TIERS_MEASURED 是 round 2 要印到选档页上的那句「实测」，靠人从本段输出抄回 tiers.js。
 // 抄错了/口径换了都不该让它继续绿：这一条把可复现的字段逐档对上
-// （uniq/uniqSolved/步数 med·p95/计数器节点 med·p95/出货是第几次尝试/sample·seed·arm）。
+// （uniq/uniqSolved/made/步数 med·p95/计数器节点 med·p95/出货是第几次尝试/sample·seed·arm）。
+// 造成数（made）也在等式里：菜单停在哪一档、页面上那句"出货率掉到 X%"，量的都是它，
+// 它只由种子和引擎决定，不是墙钟——不进等式就等于让页面上的百分数没有证人。
 // msMedP95 与 shipMs 故意不进等式——那是墙钟，机器速度一变就红，跟盘没关系。
 // 只在默认口径（全档 + SAMPLE/SEED/ARM 与表里记的一致）时比，跑子集时明说"跳过"，不闷声绿。
 {
@@ -96,9 +99,10 @@ g.line(`合计 ${tiers.length} 档 · 造成 ${madeAll} · 唯一 ${uniqAll} · 
   } else {
     for (const r of rows) {
       const p = TIERS_MEASURED[r.id];
-      const fresh = `${r.uniq}/${r.uniqSolved} · 步 ${r.steps.join('/')} · 节点 ${r.nodes.join('/')} · 出货第 ${r.first ? r.first.att : '∞'} 次`;
-      const bless = p ? `${p.uniq}/${p.uniqSolved} · 步 ${p.stepMedP95.join('/')} · 节点 ${p.nodesMedP95.join('/')} · 出货第 ${p.shipAttempt ?? '∞'} 次` : '表里没这一档';
+      const fresh = `${r.uniq}/${r.uniqSolved} · 造成 ${r.made} · 步 ${r.steps.join('/')} · 节点 ${r.nodes.join('/')} · 出货第 ${r.first ? r.first.att : '∞'} 次`;
+      const bless = p ? `${p.uniq}/${p.uniqSolved} · 造成 ${p.made} · 步 ${p.stepMedP95.join('/')} · 节点 ${p.nodesMedP95.join('/')} · 出货第 ${p.shipAttempt ?? '∞'} 次` : '表里没这一档';
       g.ok(`${r.id} 贴回的读数与本轮一致`, !!p && p.uniq === r.uniq && p.uniqSolved === r.uniqSolved &&
+        p.made === r.made &&
         p.stepMedP95[0] === r.steps[0] && p.stepMedP95[1] === r.steps[1] &&
         p.nodesMedP95[0] === r.nodes[0] && p.nodesMedP95[1] === r.nodes[1] &&
         p.shipAttempt === (r.first ? r.first.att : null) && p.sample === SAMPLE && p.seed === SEED && p.arm === ARM,
@@ -110,6 +114,10 @@ g.line(`合计 ${tiers.length} 档 · 造成 ${madeAll} · 唯一 ${uniqAll} · 
 // 观测段：7x7 黑格6 区8 不在菜单上（tiers.js 写了两条理由）。但"判据 1 在 7x7 上没跑过"
 // 是一句没有读数的话——这里把它跑出来。出货率/推满率**不设红线**：那是尺寸天花板，
 // 哪天跑得动了是进步。liar 与打架照设：铅笔说谎不是"尺寸不够大"，是引擎有洞，跟尺寸无关。
+//
+// README/DESIGN 引用的那串 7x7 读数（造成/唯一/推满/第几次出货/出口）由 tools/fixtures/obs-7x7.json
+// 存着，和 TIERS_MEASURED 一样的两节链条：这一条把"贴回的观测"对上"本轮实测"，
+// doctest 再把文档对上那份贴回。没有这一条，散文里的 7x7 就是全仓唯一没人重测的实测读数。
 {
   const OBS = envInt('OBS', 6);
   const t = { R: 7, C: 7, NB: 6, NR: 8 };
@@ -131,9 +139,30 @@ g.line(`合计 ${tiers.length} 档 · 造成 ${madeAll} · 唯一 ${uniqAll} · 
     if (!isUniq && s.p.solved) { liar++; g.line(`  **铅笔在不唯一的盘上宣称推满** 7x7 att=${att} 计数器 ${s.r ? s.r.read : '未数'}`); }
     if (s.shipped && firstShip === null) firstShip = { att: att + 1, cumMs: cum };
   }
+  const exits = Object.keys(why).sort().map(k => `${k}=${why[k]}`).join(' ');
   g.line(`观测 7x7 黑格6 区8（不在菜单）/ ${OBS} 次尝试：造成 ${made} · 唯一 ${uniq} · 铅笔推满 ${solved} · 首次出货 ${firstShip ? `第 ${firstShip.att} 次（累计 ${firstShip.cumMs}ms）` : '未出'} · 出口 ${JSON.stringify(why)}`);
   g.eq('观测段红线：7x7 上 liar', liar, 0);
   g.eq('观测段红线：7x7 上打架', fight, 0);
+  const fresh = { obs: OBS, seed: SEED, arm: ARM, dims: `${t.R}x${t.C}`, nb: t.NB, nr: t.NR,
+    made, uniq, solved, firstAtt: firstShip ? firstShip.att : null, exits };
+  if (process.argv.includes('--bless-obs')) {
+    g.line('\n// 贴回 tools/fixtures/obs-7x7.json：');
+    g.line(JSON.stringify(fresh, null, 2));
+  }
+  const sameScope = OBS === 6 && SEED === 1 && ARM === DIG.ARM;
+  if (!sameScope) {
+    g.line(`观测段贴回对表：跳过（本轮口径不是默认：OBS=${OBS} · SEED=${SEED} · ARM=${ARM}）`);
+  } else {
+    let p = null;
+    try { p = JSON.parse(readFileSync(new URL('./fixtures/obs-7x7.json', import.meta.url), 'utf8')); }
+    catch { p = null; }
+    const wantStr = p ? `${p.made}/${p.uniq}/${p.solved} · 第 ${p.firstAtt ?? '∞'} 次 · 出口 ${p.exits}` : '夹具里没有这一档';
+    const gotStr = `${made}/${uniq}/${solved} · 第 ${firstShip ? firstShip.att : '∞'} 次 · 出口 ${exits}`;
+    g.ok('观测段贴回的读数与本轮一致（7x7，墙钟除外）', !!p &&
+      p.obs === OBS && p.seed === SEED && p.arm === ARM && p.dims === fresh.dims && p.nb === t.NB && p.nr === t.NR &&
+      p.made === made && p.uniq === uniq && p.solved === solved && p.firstAtt === fresh.firstAtt && p.exits === exits,
+      `贴回 ${wantStr} vs 本轮 ${gotStr}`);
+  }
 }
 
 if (process.argv.includes('--bless-tiers')) {
@@ -141,7 +170,7 @@ if (process.argv.includes('--bless-tiers')) {
   for (const r of rows) out[r.id] = {
     shipAttempt: r.first ? r.first.att : null, shipMs: r.first ? r.first.cumMs : null,
     nodesMedP95: r.nodes, msMedP95: r.ms, stepMedP95: r.steps,
-    uniq: r.uniq, uniqSolved: r.uniqSolved, sample: SAMPLE, seed: SEED, arm: ARM,
+    made: r.made, uniq: r.uniq, uniqSolved: r.uniqSolved, sample: SAMPLE, seed: SEED, arm: ARM,
   };
   g.line('\n// 贴回 js/engine/tiers.js 的 TIERS_MEASURED：');
   g.line(`export const TIERS_MEASURED = ${JSON.stringify(out)};`);

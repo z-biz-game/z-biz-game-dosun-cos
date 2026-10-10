@@ -55,13 +55,14 @@ export const tierById = id => TIERS.find(t => t.id === id) || null;
 // 档位表要能在浏览器里直接用，浏览器读不到磁盘）。
 // 字段：shipAttempt/shipMs = 第几次尝试出货 / 到那时累计毫秒；nodesMedP95 = 唯一盘的计数器节点数
 // med/p95；msMedP95 = 整盘（make+dig+铅笔）毫秒 med/p95；stepMedP95 = 挖到唯一用的挪步数；
+// made = 20 次尝试里"造得出盘"的次数（出货率的那半个分数，只由种子与引擎决定，是菜单停在哪一档的读数）；
 // uniq/uniqSolved = 20 次尝试里"证成唯一"的盘数 / 其中铅笔推满的盘数。
 export const TIERS_MEASURED = {
-  s4: { shipAttempt: 1, shipMs: 44, nodesMedP95: [153, 2145], msMedP95: [6, 44], stepMedP95: [3, 24], uniq: 11, uniqSolved: 11, sample: 20, seed: 1, arm: 'greedy' },
-  s5: { shipAttempt: 1, shipMs: 8, nodesMedP95: [420, 2580], msMedP95: [17, 64], stepMedP95: [5, 35], uniq: 10, uniqSolved: 10, sample: 20, seed: 1, arm: 'greedy' },
-  s6: { shipAttempt: 2, shipMs: 54, nodesMedP95: [264, 386], msMedP95: [42, 59], stepMedP95: [3, 26], uniq: 7, uniqSolved: 7, sample: 20, seed: 1, arm: 'greedy' },
-  s7: { shipAttempt: 1, shipMs: 34, nodesMedP95: [1584, 2571], msMedP95: [42, 56], stepMedP95: [6, 6], uniq: 4, uniqSolved: 4, sample: 20, seed: 1, arm: 'greedy' },
-  h6: { shipAttempt: 3, shipMs: 645, nodesMedP95: [1093, 6022], msMedP95: [50, 74], stepMedP95: [4, 16], uniq: 8, uniqSolved: 8, sample: 20, seed: 1, arm: 'greedy' },
-  h7: { shipAttempt: 2, shipMs: 443, nodesMedP95: [1463, 11223], msMedP95: [90, 446], stepMedP95: [12, 27], uniq: 10, uniqSolved: 10, sample: 20, seed: 1, arm: 'greedy' },
-  h8: { shipAttempt: 5, shipMs: 543, nodesMedP95: [778, 778], msMedP95: [102, 102], stepMedP95: [2, 2], uniq: 2, uniqSolved: 2, sample: 20, seed: 1, arm: 'greedy' },
+  s4: { shipAttempt: 1, shipMs: 44, nodesMedP95: [153, 2145], msMedP95: [6, 44], stepMedP95: [3, 24], made: 20, uniq: 11, uniqSolved: 11, sample: 20, seed: 1, arm: 'greedy' },
+  s5: { shipAttempt: 1, shipMs: 8, nodesMedP95: [420, 2580], msMedP95: [17, 64], stepMedP95: [5, 35], made: 20, uniq: 10, uniqSolved: 10, sample: 20, seed: 1, arm: 'greedy' },
+  s6: { shipAttempt: 2, shipMs: 54, nodesMedP95: [264, 386], msMedP95: [42, 59], stepMedP95: [3, 26], made: 17, uniq: 7, uniqSolved: 7, sample: 20, seed: 1, arm: 'greedy' },
+  s7: { shipAttempt: 1, shipMs: 34, nodesMedP95: [1584, 2571], msMedP95: [42, 56], stepMedP95: [6, 6], made: 10, uniq: 4, uniqSolved: 4, sample: 20, seed: 1, arm: 'greedy' },
+  h6: { shipAttempt: 3, shipMs: 645, nodesMedP95: [1093, 6022], msMedP95: [50, 74], stepMedP95: [4, 16], made: 19, uniq: 8, uniqSolved: 8, sample: 20, seed: 1, arm: 'greedy' },
+  h7: { shipAttempt: 2, shipMs: 443, nodesMedP95: [1463, 11223], msMedP95: [90, 446], stepMedP95: [12, 27], made: 18, uniq: 10, uniqSolved: 10, sample: 20, seed: 1, arm: 'greedy' },
+  h8: { shipAttempt: 5, shipMs: 543, nodesMedP95: [778, 778], msMedP95: [102, 102], stepMedP95: [2, 2], made: 7, uniq: 2, uniqSolved: 2, sample: 20, seed: 1, arm: 'greedy' },
 };

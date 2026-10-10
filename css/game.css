@@ -102,40 +102,67 @@ button.link { background: none; border: 0; color: var(--dim); text-decoration: u
 .sw-mark { background: #1b1f29; }
 .keyhint { margin: 0; font-size: 12px; color: var(--dim); }
 .foot { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 10px; display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; font-size: 12.5px; color: var(--dim); }
-/* ------------------------------------------------------------------ 触摸与命中区 */
-/* touch-action：画布上的手指是"落子"，不是"滚动页面"；不写这条，pointerdown 之后
-   浏览器还会等一次双击缩放的判定，手机上就变成"点一下、隔半秒才有反应"。 */
-#board { touch-action: none; }
-button, .tier { touch-action: manipulation; }
-.tier { min-height: 64px; padding: 10px 12px; }
-.place { min-height: 48px; }
-.acts, .digits { gap: 8px; }
-.acts button { flex: 1 1 auto; }
-.hud { display: flex; gap: 6px; flex-wrap: wrap; }
-.hud button[aria-pressed="true"] { border-color: var(--accent); background: #1d2b38; color: var(--accent); }
 
-/* ------------------------------------------------------------------ 幕布（暂停 / 教学） */
-/* 幕布用 inset:0 + env() 兜底：全屏在 iOS 上仍带圆角安全区，卡片不能贴到屏幕物理边。 */
-#pause-veil, #help-veil {
-  position: absolute; inset: 0; display: grid; place-items: center;
-  background: rgba(8, 10, 14, .78); border-radius: 10px; padding: calc(8px + var(--safe-t)) calc(8px + var(--safe-r)) calc(8px + var(--safe-b)) calc(8px + var(--safe-l));
+/* 中央分发：safe-area 兜底 */
+
+/* ---------- safe-area：刘海与主屏条不吃掉按钮（中央分发，akari-cos 同口径） ---------- */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
-#help-veil { position: fixed; z-index: 30; inset: 0; background: rgba(8, 10, 14, .9); border-radius: 0; }
-.veil-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; max-width: min(560px, 94%); max-height: 86vh; overflow: auto; }
-.veil-card h3 { margin: 0 0 8px; font-size: 18px; }
-.veil-card ol { margin: 0 0 10px; padding-left: 20px; color: var(--dim); font-size: 13.5px; }
-.veil-card .kbd { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
-.veil-actions { display: flex; gap: 8px; justify-content: center; }
-#pause-mark { font-size: 34px; letter-spacing: .18em; color: var(--accent); margin: 0 0 4px; }
+html, body {
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
+body {
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+/* 贴边的固定/吸底元素自己让开主屏条，别让 home indicator 压住按钮 */
+.fixed-bottom, .bottom-bar, .hud-bottom, footer.app-footer {
+  padding-bottom: calc(var(--sab) + env(safe-area-inset-bottom, 0px));
+}
 
-/* ------------------------------------------------------------------ reduceMotion */
-/* 两条腿：媒体查询管 CSS 动效，data 属性管 canvas 回路（js/render/anim.js 读同一个开关）。
-   只写媒体查询 = 画面上的粒子照跑，那叫"半个分支"。 */
+
+/* ============================================================
+   44px 触摸命中下限（Apple HIG 手机可用性底线）
+   每个真正可点的元素都要有 ≥44×44 CSS px 的命中盒。
+   min-height / min-width 是**硬下限**：只会把过小的盒子撑到 44px，
+   本来就够大的控件（宽药丸、整行列表项、大数字键）外形一点不变。
+
+   两处非平凡之处：
+   1) 需要 !important —— 各组件自己有 `.shelf button { min-width: 34px }`
+      这类更"贴身"的规则，类选择器的优先级高于任何标签堆叠，
+      不加的话这条底线会被组件规则逐个抵消。
+   2) 先把 --touch-min 定死：tapa / nurikabe 早就写了
+      `min-height: var(--touch-min)`，但全仓没有任何地方定义过这个变量，
+      无 fallback 的 var() 在计算值阶段整条作废 —— 那是个看着像 44px、
+      实际什么都不保证的死规则。这里补上定义，让它们原本的意图真正成立。
+   ============================================================ */
+:root { --touch-min: 44px; }
+button,
+select,
+input,
+textarea,
+a[href],
+[role="button"] {
+  min-height: 44px !important;
+  min-width: 44px !important;
+}
+
+/* ---------- 减弱动效（prefers-reduced-motion）---------- */
+/* 本仓当前**没有**可减的装饰性动效：board.draw() 的 pulse 形参默认值是 null，全仓没有任何调用方传过它，那处 strokeStyle 分支恒不成立（是死参数，不是动效）
+   剩下的 :hover 颜色瞬切与 focus 轮廓是状态反馈，不是动效，动了反而更难用。 */
 @media (prefers-reduced-motion: reduce) {
-  button, .tier { transition: none; }
-  button:active { transform: none; }
-  #app { animation: none; }
+  /* 当下这三条不命中任何东西；写在这里是为了将来有人加动画/过渡时自动被归零，
+     而不必再想起来补这一段。颜色、透明度、命中区、focus 轮廓一律不动。 */
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
-html[data-reduced-motion="reduce"] button,
-html[data-reduced-motion="reduce"] .tier { transition: none; }
-html[data-reduced-motion="reduce"] button:active { transform: none; }

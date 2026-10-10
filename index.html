@@ -2,25 +2,17 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#0B0C10" />
 <title>どすんふわり · Dosun-Fuwari 气球与铁球</title>
-<meta name="description" content="Dosun-Fuwari（どすんふわり / dosun）：每个区一只气球一只铁球，气球上浮、铁球下沉。每一局都由穷尽计数器证唯一、由命名铅笔实测能推到底 —— 档位表的实测数字来自 js/engine/tiers.js 的 TIERS_MEASURED。" />
-<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
-<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png" />
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-<link rel="manifest" href="manifest.webmanifest" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="どすんふわり" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="どすんふわり · Dosun-Fuwari 气球与铁球" />
-<meta property="og:description" content="每个区恰好一只气球、一只铁球：气球上浮、铁球下沉。每一局都由穷尽计数器证唯一解。" />
-<meta property="og:image" content="og/og-card.png" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="og/og-card.png" />
+<meta name="description" content="Dosun-Fuwari（どすんふわり / dosun）：每个区一只气球一只铁球，气球上浮、铁球下沉。每一局都由穷尽计数器证唯一、由命名铅笔实测能推到底 —— 档位表的实测数字来自 js/engine/tiers.js 的 TIERS_MEASURED。" /><meta property="og:title" content="どすんふわり · Dosun-Fuwari 气球与铁球"><meta property="og:description" content="Dosun-Fuwari（どすんふわり / dosun）：每个区一只气球一只铁球，气球上浮、铁球下沉。每一局都由穷尽计数器证唯一、由命名铅笔实测能推到底 —— 档位表的实测数字来自 js/engine/tiers.js 的 TIERS_MEASURED。"><meta property="og:image" content="https://z-biz-game.github.io/z-biz-game-dosun-cos/icons/icon-512.png"><meta name="twitter:image" content="https://z-biz-game.github.io/z-biz-game-dosun-cos/icons/icon-512.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B0C10'/%3E%3Ccircle cx='11' cy='10' r='5' fill='%23F2F4F7'/%3E%3Ccircle cx='21' cy='23' r='5' fill='%234A5361'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="css/game.css" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body data-genre="dosun">
 <div id="app">
@@ -29,10 +21,10 @@
       <h1>どすんふわり</h1>
       <p class="sub">Dosun-Fuwari · Nikoli slug <code>dosun</code></p>
     </div>
-    <div class="top-actions hud">
-      <button id="btn-sound" class="ghost" type="button" aria-pressed="false" aria-label="音效开关（M）">音效 关</button>
-      <button id="btn-full" class="ghost" type="button" aria-pressed="false" aria-label="全屏（F）">全屏</button>
-      <button id="btn-help" class="ghost" type="button" aria-label="玩法说明（H）">玩法</button>
+    <div class="top-actions">
+      <button id="btn-sound" class="ghost" type="button" aria-pressed="false">音效 关</button>
+      <button type="button" id="btn-pause" class="ghost" aria-pressed="false" title="暂停 (P)">暂停</button>
+      <button type="button" id="btn-fullscreen" class="ghost" aria-pressed="false" title="全屏 (F)">全屏</button>
     </div>
   </header>
 
@@ -55,7 +47,8 @@
           <button id="btn-resume" class="primary" type="button" hidden>继续上一局</button>
           <p class="menu-disclose" id="tier-disclose">
             7×7 <b>不在菜单里</b>：观测段样本薄到不能当承诺（<code>tools/generator-probe.mjs</code> 的 OBS 段），
-            而 6×6 区8 之后出货率已掉到 35%，插一档读数更好的进来阶梯就不成阶梯了。
+            而菜单各档的出货率就写在它自己那一行的 <code>实测 造成 N/样本</code> 里（<code>TIERS_MEASURED</code> 的字段，
+            由选档页闸逐档比对）—— 最高档的读数已经把天花板指出来了，再往上插一档，阶梯就不成阶梯。
           </p>
         </div>
 
@@ -142,7 +135,7 @@
           <span><i class="sw sw-ball"></i>铁球（下沉）</span>
           <span><i class="sw sw-mark"></i>钉空（这里不放球）</span>
         </div>
-        <p class="keyhint"><b>点击/触屏</b> 循环 未定→气球→铁球→钉空 · <b>方向键</b> 移动 · <b>空格</b> 循环 · <b>W</b> 气球 · <b>B</b> 铁球 · <b>X</b> 钉空 · <b>退格</b> 收回未定 · <b>Z</b> 撤销 · <b>P</b> 暂停 · <b>R</b> 换一局 · <b>M</b> 静音 · <b>F</b> 全屏 · <b>H</b> 玩法</p>
+        <p class="keyhint"><b>点击/触屏</b> 循环 未定→气球→铁球→钉空 · <b>方向键</b> 移动 · <b>空格</b> 循环 · <b>W</b> 气球 · <b>B</b> 铁球 · <b>X</b> 钉空 · <b>退格</b> 收回未定 · <b>Z</b> 撤销 · <b>P</b> 暂停（计时与盘面一起冻住，暂停期间摆不上去）</p>
       </aside>
     </section>
   </main>
@@ -177,5 +170,6 @@
 
 <script src="js/pwa-register.js" defer></script>
 <script type="module" src="js/main.js"></script>
+  <script src="js/sw-register.js"></script>
 </body>
 </html>
