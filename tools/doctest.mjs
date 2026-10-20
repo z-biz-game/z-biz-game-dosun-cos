@@ -478,6 +478,82 @@ const idxAll = (src, re) => src.split('\n').map((l, i) => (re.test(l) ? i : -1))
     bad.length ? `越界：${bad.join('，')}` : `重置函数 4 项写手齐、begin() 内 0 处裸写、两条分支各按「接盘→重置→起表」排序、空仓出口干净`);
 }
 
+// ---- D21 裸续引也要开得到文件：省掉文件名的 `:NN` 借它前面最近的那条**带行号**的引用一起判 ----
+// D9 的正则要求每条引用自带路径，于是 README 里 `` `:144`、`:145` `` 这类续引从来没被开过文件：
+// 往 `tools/generator-probe.mjs` 插一行，这十几处会集体漂走而 D9 一声不响（比 2026-10 那次 main.js 加 49 行只少不多）。
+// 游标只被「路径:行号」推动：**不带行号的文件名提及不算**（`tools/fixtures/obs-7x7.json` 那种），
+// 否则 `:144` 会借到观测段夹具的 JSON 上，一条 15 行的文件里"144 行越界"反倒成了唯一的证据。
+const WALK = /`((?:\.github\/workflows\/)?[\w./@+-]+\.(?:js|mjs|cjs|sh|json|html|md|yml)):(\d+)(?:-(\d+))?`|`:(\d+)(?:-(\d+))?`/g;
+const landMiss = (path, from, to) => {
+  if (!path) return '前面没有一条带行号的引用可借';
+  let src;
+  try { src = read(path); } catch { return `${path}（文件不存在）`; }
+  const L = src.split('\n');
+  if (from > L.length || (to && to > L.length)) return `${path}:${from}${to ? '-' + to : ''}（该文件只有 ${L.length} 行）`;
+  const head = L[from - 1].trim(), endL = L[(to || from) - 1].trim();
+  if (!head || !endL) return `${path}:${from}${to ? '-' + to : ''}（整段是空行——引用早已漂走）`;
+  if (!to && CLOSER.test(head)) return `${path}:${from}（整行只写着块闭合符 ${JSON.stringify(head)}）`;
+  return '';
+};
+// 指认的名字从反引号里取第一段标识符，再回到被引窗口里**整词**找：
+// `DIG` 不许靠 `DIGITAL` 命中；前后允许点号（`DIG.cap` 这种写法引的是同一个落点）。
+const missAnchor = (path, from, to, rawName) => {
+  const why = landMiss(path, from, to);
+  if (why) return why;
+  const id = (String(rawName).match(/[A-Za-z_$][\w$]{2,}/) || [])[0];
+  if (!id) return `「${rawName}」里没有可比对的标识符`;
+  const win = read(path).split('\n').slice(from - 1, to || from).join('\n');
+  if (!new RegExp('(?:^|[^\\w$.])' + id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[^\\w$])').test(win))
+    return `那几行里没有 ${id}（整词）`;
+  return '';
+};
+const bareList = [], anchorList = [];
+for (const [doc, raw] of [['README.md', README], ['DESIGN.md', DESIGN]]) {
+  const src = raw.split('\n').filter(l => !/^\| K\d+ \| /.test(l)).join('\n');
+  let last = null;
+  for (const m of src.matchAll(WALK)) {
+    const tail = src.slice(m.index + m[0].length);
+    const named = tail.match(/^\s*的\s*`([^`]+)`/) || tail.match(/^（`([^`]+)`）/);
+    if (m[1]) {
+      last = m[1];
+      if (named) anchorList.push([doc, m[1], +m[2], m[3] ? +m[3] : null, named[1]]);
+      const before = src.slice(0, m.index).match(/`([^`\n（）]+)`（$/);
+      if (before) anchorList.push([doc, m[1], +m[2], m[3] ? +m[3] : null, before[1]]);
+      continue;
+    }
+    const from = +m[4], to = m[5] ? +m[5] : null;
+    bareList.push([doc, last, from, to]);
+    if (named && last) anchorList.push([doc, last, from, to, named[1]]);
+  }
+}
+const bareBad = bareList.map(([doc, path, from, to]) => {
+  const why = landMiss(path, from, to);
+  return why ? `${doc} 的 \`:${from}${to ? '-' + to : ''}\` → ${why}` : '';
+}).filter(Boolean);
+ok(bareList.length >= 15, 'D21a 文档里的裸续引解析到了一大堆（少于 15 条说明这一类引用改了写法，解析器在空转）',
+  `${bareList.length} 条裸引 · 另有 ${cites.length} 条自带路径的由 D9 逐条开文件`);
+ok(bareBad.length === 0, 'D21 每一条裸续引都借到前面那条引用的文件，并和 D9 一样开回真行',
+  bareBad.length ? `漂了：${bareBad.join('，')}` : `${bareList.length} 条：${bareList.map(b => `${b[1]}:${b[2]}${b[3] ? '-' + b[3] : ''}`).join(' ')}`);
+const KNIFE21 = bareList.length ? landMiss(bareList[0][1], 999999, null) : '';
+ok(!!KNIFE21, 'D21b 这一格自己带一把越界的刀：把上面第一条裸引的行号推到文件之外，必须报回越界（否则 D21 是空跑）',
+  KNIFE21 || '推到 999999 行仍然"没毛病"——落点比对根本没跑');
+
+// ---- D22 指认要读得回去：「`path:NN` 的 `NAME`」里那个名字必须在被引的那几行里整词命中 ----
+// 光对行号对不出"指到了隔壁那一行"：`tools/generator-probe.mjs:24` 这种落点行号在界内、
+// 不是空行、也不是闭合符（D9 与 D21 都判它绿），可文档在那里写的名字是 SEED，而 SEED 的默认值在 :25。
+// 名字与行号必须同源——把反引号里那个名字回被引的窗口里整词比一次，才认得出这一类漂。
+const anchorBad = anchorList.map(([doc, path, from, to, name]) => {
+  const why = missAnchor(path, from, to, name);
+  return why ? `${doc} ${path}:${from}${to ? '-' + to : ''} 的 \`${name}\` → ${why}` : '';
+}).filter(Boolean);
+ok(anchorList.length >= 12, 'D22a 文档里的指认解析到了（少于 12 处说明指认形状改了，锚点这一类断言在空转）',
+  `${anchorList.length} 处指认 · 落在 ${new Set(anchorList.map(a => `${a[1]}:${a[2]}`)).size} 个不同位置`);
+ok(anchorBad.length === 0, 'D22 每一处指认的名字都在被引的那几行里整词命中',
+  anchorBad.length ? `认不出来：${anchorBad.join('，')}` : `${anchorList.length} 处逐个开回窗口比过`);
+const KNIFE22 = anchorList.length ? missAnchor(anchorList[0][1], anchorList[0][2], anchorList[0][3], 'zzNoSuchIdentifierzz') : '';
+ok(!!KNIFE22, 'D22b 这一格自己带一把指错名字的刀：把第一条指认的名字换成仓里不存在的标识符，必须报回未命中',
+  KNIFE22 || '换成假名字之后仍然不红——整词比对根本没跑');
+
 // ---- D14c 末项就是本闸本轮真打印的条数（这一条自己也算在内，所以放在最后一次 ok）----
 const SELF = rows + 1;
 ok(!!sumM && di >= 0 && terms[di][1] === SELF, 'D14c 文档抄的 doctest 条数等于本轮实测（含这一条）',

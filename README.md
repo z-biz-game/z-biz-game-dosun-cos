@@ -62,7 +62,7 @@ npm run selftest     # → rc=1，五份报告各点名吃下一条种下的错�
 - **逻辑闸 `npm test`**：七道，名单只有一份——`tools/verify.sh:31` 的 `GATES`，`doctest` 排在**最后**
   是刻意的：它读前面每条闸本轮自己打印的条数（`tools/verify.sh:44-48` 把每条闸的 stdout 落到
   `_tmp-verify-logic/<gate>.log` 并写进 `_tmp-verify-logic/gate-rows.txt`）。
-  逻辑闸本轮合计 236 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 19 doctest 62
+  逻辑闸本轮合计 242 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 19 doctest 68
   那一句里的七个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`；doctest 自己那一个由 `D14c` 对），**不是手抄的**。
   `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:69` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
@@ -75,7 +75,7 @@ npm run selftest     # → rc=1，五份报告各点名吃下一条种下的错�
   （`tools/verify.sh:415`）与 `exit $FAILED`（`tools/verify.sh:416`）之前——横幅在后面，
   它的红先把 `=== ALL GREEN ===` 压成 `=== FAILURES ABOVE ===`，不会被盖住。
 - **出题台阶 `npm run probe`**：口径 `ARM=greedy MAXMUT=40 cap=400000 maxSol=400`，每档 20 次尝试、
-  `SEED=1`（`tools/generator-probe.mjs:24` 的默认值、`:31` 的口径行）。
+  `SEED=1`（`tools/generator-probe.mjs:24-25` 的默认值、`:31` 的口径行）。
   本轮合计 7 档 · 造成 111 · 唯一 52 · 其中铅笔推满 52 · 可供验谎 59（`tools/generator-probe.mjs:86`）。
   三条红线都在 `tools/generator-probe.mjs`：铅笔从不把没证成唯一的盘推满（`:73` liar=0）、
   铅笔的解与计数器的唯一解从不打架（`:77` 打架=0）、以及配对给 liar 红线的反空转断言——
