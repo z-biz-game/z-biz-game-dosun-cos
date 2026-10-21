@@ -129,7 +129,7 @@
 
 ## 暂停冻住的是两样东西：表针，和盘面
 
-纪录的排序键只有一个数：`Store.record` 里那句 `r.ms < prev.ms`（`js/save.js:129`）——同档只比时间，
+纪录的排序键只有一个数：`Store.record` 里那句 `r.ms < prev.ms`（`js/save.js:141`）——同档只比时间，
 提示与步数都不当门，免得把"更快"这条读数改成别的口径。这个键决定了暂停必须有两条腿：
 只停表、不停盘，暂停就成了**免费的思考时间** —— 想多久都行，按「继续」再一路摆到赢，
 用时照样顶掉旧纪录。所以 `blockedWhilePaused()`（`js/main.js:295`）挡的是五条写手
@@ -267,7 +267,7 @@ Pages 部署完之后还要第三种形态——`BASE_URL=https://z-biz-game.git
   （`js/main.js:516`）。但闸只走 `pointerdown` 那一条（CDP 的 `Input.dispatchMouseEvent`），
   没有设备仿真腿，也不断言 390px 宽下排布不溢出。移动端这句话不写。
 - **续局与坏档**：`Store` 存 seed 游标、每档最佳时间，**还有进行中的那一局**
-  （存档口 `js/main.js:44-49`，`setGame` 在 `js/save.js:124`），选档页那颗「回到上一局」接的就是它
+  （存档口 `js/main.js:44-49`，`setGame` 在 `js/save.js:136`），选档页那颗「回到上一局」接的就是它
   （`js/main.js:183`）。但没有"中途退出再回来还是这一局"的腿，也没有 corrupt-save 的腿——
   `js/save.js` 那套两段式解码（坏记录只丢那一条）只在 node 侧被测过，浏览器腿没碰过它。
 - **7×7 及更大尺寸能玩**：观测段只披露读数、不设出货红线（`tools/generator-probe.mjs:122-145`），

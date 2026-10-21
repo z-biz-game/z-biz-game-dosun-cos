@@ -116,6 +116,18 @@ export function makeStore(storage) {
   return {
     read,
     write,
+    // 存档的**原样**对象：闸读的就是这一份 —— 读不出来时给一个空对象，
+    // 不是 undefined、也不是半截对象（浏览器腿的坏档那一族断的就是这条）。
+    //
+    // 为什么它和下面那些方法走的不是同一份视图：原样这份回答"存档里此刻放着什么"，
+    // 解码那份（read().data）回答"哪些记录还能用"。坏档那一族要看的正是前者——
+    // 一份解析不了的存档，回读出来必须是一个**完整**的空对象。
+    // 下面 cursor / best / game 走解码视图，所以 '{"cursor":"7"}' 这种坏字段
+    // 在那边已经被丢掉了，游标照样回到 1。
+    get data() {
+      try { return JSON.parse(storage ? storage.getItem(STORE_KEY) : null) || {}; }
+      catch { return {}; }
+    },
     cursor() { return read().data.cursor; },
     setCursor(c) { const { data } = read(); data.cursor = c; write(data); },
     best(id) { return read().data.best[id] || null; },
