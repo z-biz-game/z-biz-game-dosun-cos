@@ -83,6 +83,31 @@ button.link { background: none; border: 0; color: var(--dim); text-decoration: u
 .win-card p { margin: 2px 0; font-size: 13px; color: var(--dim); }
 .win-record { color: var(--accent); }
 .win-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+
+/* ---------- 两张 veil 卡片：教学盖整页，暂停贴在盘下面 ---------- */
+/* 教学页是整页对话框：玩法说明要盖住盘面，玩家不该一边看着盘一边被半张卡片压着。 */
+#help-veil {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  background: rgba(8, 10, 14, .82); padding: 18px;
+}
+#help-veil .veil-card { max-width: 640px; max-height: 86vh; overflow: auto; }
+/* 暂停**不遮盘**：盘面必须看得见、点得到 —— 暂停里点一下要有一句"被暂停挡住了"，
+   挡的方式是"退回 + 在状态行说清楚为什么"，不是把盘藏起来（藏起来就分不清"挡住"和"坏了"）。 */
+#pause-veil { display: block; margin-top: 8px; }
+.veil-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; font-size: 13.5px;
+}
+.veil-card h3 { margin: 0 0 6px; font-size: 15px; }
+.veil-card p { margin: 4px 0; color: var(--dim); }
+.veil-card ol { margin: 6px 0; padding-left: 20px; color: var(--dim); }
+.veil-card li { margin: 2px 0; }
+.veil-actions { display: flex; gap: 8px; margin-top: 10px; }
+#pause-mark { margin: 0 0 2px; font-weight: 700; color: var(--accent); }
+.kbd {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+  border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; color: var(--accent);
+}
 .conflict-line { min-height: 20px; margin: 8px 0 0; color: var(--bad); font-size: 13px; }
 .panel { display: grid; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .digits { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }

@@ -22,6 +22,7 @@
       <p class="sub">Dosun-Fuwari · Nikoli slug <code>dosun</code></p>
     </div>
     <div class="top-actions">
+      <button id="btn-help" class="ghost" type="button" aria-label="玩法说明" aria-pressed="false" title="玩法说明（?）">?</button>
       <button id="btn-sound" class="ghost" type="button" aria-pressed="false">音效 关</button>
       <button type="button" id="btn-pause" class="ghost" aria-pressed="false" title="暂停 (P)">暂停</button>
       <button type="button" id="btn-fullscreen" class="ghost" aria-pressed="false" title="全屏 (F)">全屏</button>
@@ -44,7 +45,7 @@
         <div class="col">
           <h3 class="col-title">选一档</h3>
           <div id="tier-list" class="tiers"></div>
-          <button id="btn-resume" class="primary" type="button" hidden>继续上一局</button>
+          <button id="btn-resume" class="primary" type="button" hidden>回到上一局</button>
           <p class="menu-disclose" id="tier-disclose">
             7×7 <b>不在菜单里</b>：观测段样本薄到不能当承诺（<code>tools/generator-probe.mjs</code> 的 OBS 段），
             而菜单各档的出货率就写在它自己那一行的 <code>实测 造成 N/样本</code> 里（<code>TIERS_MEASURED</code> 的字段，
@@ -82,7 +83,7 @@
               <p id="pause-mark">‖ 暂停</p>
               <p>仿真与计时都停在这里：累加器不再吃帧时间，回来不会补跑。</p>
               <div class="veil-actions">
-                <button id="btn-resume-play" class="primary" type="button">继续（P）</button>
+                <button id="btn-resume-play" class="primary" type="button">接着摆（P）</button>
               </div>
             </div>
           </div>
@@ -109,7 +110,6 @@
           <button id="btn-u" class="place none" type="button" aria-label="收回未定">未定</button>
         </div>
         <div class="acts">
-          <button id="btn-pause" class="ghost" type="button" aria-pressed="false">暂停</button>
           <button id="btn-hint" class="ghost" type="button">提示</button>
           <button id="btn-undo" class="ghost" type="button">撤销</button>
           <button id="btn-new" class="ghost" type="button">换一局</button>
@@ -153,6 +153,7 @@
         <span class="kbd">W</span>/<span class="kbd">B</span>/<span class="kbd">X</span> 直接摆，
         <span class="kbd">Z</span> 撤销，<span class="kbd">R</span> 换一局，
         <span class="kbd">P</span> 暂停，<span class="kbd">M</span> 静音，<span class="kbd">F</span> 全屏，
+        <span class="kbd">?</span> 玩法说明，
         <span class="kbd">Enter</span>/<span class="kbd">空格</span> 在菜单里开局。
       </p>
       <p id="help-facts" class="mono"></p>
@@ -170,6 +171,5 @@
 
 <script src="js/pwa-register.js" defer></script>
 <script type="module" src="js/main.js"></script>
-  <script src="js/sw-register.js"></script>
 </body>
 </html>

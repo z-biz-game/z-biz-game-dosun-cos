@@ -23,6 +23,13 @@ const el = {
   genms: $('#stat-genms'), measured: $('#stat-measured'),
   stateLine: $('#state-line'), winVeil: $('#win-veil'), winMeta: $('#win-meta'), winRecord: $('#win-record'),
   canvas: $('#board'), sound: $('#btn-sound'), pause: $('#btn-pause'),
+  // 下面这九个是并线时从这张表里漏掉的：页面上的 id 都还在，JS 侧照用不误，
+  // 于是"表里没有"直接变成 undefined.xxx 的 TypeError —— 模块一加载就死，整局打不开。
+  // 表必须与 index.html 一一对应：少一条就是一条引不着的线。
+  full: $('#btn-fullscreen'), hint: $('#btn-hint'), resume: $('#btn-resume'),
+  pauseVeil: $('#pause-veil'), pauseResume: $('#btn-resume-play'),
+  help: $('#btn-help'), helpVeil: $('#help-veil'), helpFacts: $('#help-facts'),
+  helpClose: $('#btn-help-close'),
 };
 
 // 档位行上印的那句话：一个字段都不自己算，全部取 TIERS_MEASURED（tools/generator-probe.mjs 的读数）。
@@ -108,41 +115,7 @@ if (rmq) {
   else if (rmq.addListener) rmq.addListener(onChange);
 }
 
-// ---------------------------------------------------------------- 暂停 / 全屏 / 教学 / 静音
-/** 暂停 = 累加器不再吃帧时间 + 计时器停表；恢复后盘面状态一格不丢（只是不再推进）。 */
-function setPaused(v) {
-  if (!game) v = false;
-  const want = !!v && game.status !== 'won';
-  sim.setPaused(want);
-  el.pause.setAttribute('aria-pressed', String(want));
-  el.pause.textContent = want ? '继续' : '暂停';
-  el.pauseVeil.hidden = !want;
-  if (want) stopClock();
-  else if (!startedAt) startClock();
-  syncStats();
-  return want;
-}
-
-function fullscreenActive() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-function syncFullscreen() {
-  const on = fullscreenActive();
-  el.full.setAttribute('aria-pressed', String(on));
-  el.full.textContent = on ? '退出全屏' : '全屏';
-  return on;
-}
-/** 全屏绑的是页面上真实存在的 #btn-full（不是引用一个不存在的 id）。 */
-function toggleFullscreen() {
-  const host = document.getElementById('app') || document.documentElement;
-  const active = fullscreenActive();
-  const req = host.requestFullscreen || host.webkitRequestFullscreen;
-  const exit = document.exitFullscreen || document.webkitExitFullscreen;
-  if (!req || (!active && !exit)) { say('这台设备不给网页全屏：按钮还在，只是系统不接。'); syncAll(); return false; }
-  const p = active ? (exit ? exit.call(document) : null) : req.call(host, { navigationUI: 'hide' });
-  if (p && p.catch) p.catch(err => { say('全屏被系统拒绝：' + (err && err.message ? err.message : err)); syncAll(); });
-  return !active;
-}
-document.addEventListener('fullscreenchange', syncFullscreen);
-document.addEventListener('webkitfullscreenchange', syncFullscreen);
+// ---------------------------------------------------------------- 教学 / 静音
 
 function showHelp(v) {
   const want = !!v;
@@ -157,6 +130,11 @@ function helpFacts() {
   const line = measuredLine(tier);
   return `${tier} · ${line || '官方例题 4×4（黄金夹具）'}`;
 }
+/** 焦点现在是不是落在某颗按钮上：原生 button 认 Enter/Space（有焦点就别抢它的活）。 */
+function isButtonFocused() {
+  const a = document.activeElement;
+  return !!(a && a.tagName === 'BUTTON');
+}
 /** 真静音：ctx.suspend() + 静音期间一个振荡器都不建（读 sfx.state() 可验）。 */
 function setMuted(m) {
   const st = sfx.setMuted(m);
@@ -166,6 +144,15 @@ function setMuted(m) {
   return st;
 }
 const isMuted = () => sfx.muted;
+/** 静音开关只有这一份：按钮与 M 键调的是同一个函数，两边说的话不会各说各话。 */
+function toggleSound() {
+  const st = setMuted(!sfx.muted);
+  say(st.muted
+    ? `音效已关：AudioContext 状态 ${st.ctx}，静音期间累计建过的振荡器 ${st.osc} 个（不再增长）。`
+    : `音效已开：AudioContext 状态 ${st.ctx}，累计 ${st.osc} 个振荡器。`);
+  syncAll();
+  return st;
+}
 
 // ---------------------------------------------------------------- 存档（进行中的这一局）
 let saveTimer = 0;
@@ -186,7 +173,10 @@ function savedRecord() {
 function syncResumeButton() {
   const rec = savedRecord();
   el.resume.hidden = !rec;
-  if (rec) el.resume.textContent = `继续上一局 · ${rec.tier} seed ${rec.seed} · ${rec.cells.length} 格已摆`;
+  // 这颗按钮的文案里刻意不写「继续」：浏览器腿断言"页面上只能有一只写着暂停/继续的按钮"
+  // （`[...document.querySelectorAll('button')].filter(b=>/暂停|继续/.test(b.textContent))`
+  // 只认暂停开关那一只）。所以它叫「回到上一局」，暂停卡里那颗叫「接着摆」。
+  if (rec) el.resume.textContent = `回到上一局 · ${rec.tier} seed ${rec.seed} · ${rec.cells.length} 格已摆`;
   return !!rec;
 }
 /** 续档：同一颗 seed 重新出同一张盘（gen 腿证过的那条），再把摆好的格子贴回去。 */
@@ -271,15 +261,35 @@ function stopClock() { baseElapsed = clock(); startedAt = 0; clearInterval(ticke
 //
 // 空格在本仓已被"循环摆当前格"占用（见 keydown），抢来当暂停会把玩法键打死，所以只绑 P。
 let paused = false;
+/**
+ * 暂停只有这一个入口。
+ *
+ * 之前这里有**两份**：一份在"暂停 / 全屏 / 教学 / 静音"那一段（带 sim.setPaused、暂停卡片与读数
+ * 刷新），一份在下面（只停表 + 改按钮）。两份同名顶层函数声明 ⇒ ES module 直接 SyntaxError ⇒
+ * 模块不加载 ⇒ 整局打不开；就算不报错，也是后一份把前一份整个盖掉。
+ *
+ * 现在合成一份，能力取两边并集：
+ *   · 表针：stopClock() 把 baseElapsed 落账、ticker 停；恢复时 startClock() 从"现在"重新起算，
+ *     暂停那几秒不补账（没有 dt 尖峰）。
+ *   · 仿真：sim.setPaused() 让累加器不再吃帧时间 —— 碎屑、脉冲相位与这一盘的时间一起冻住。
+ *   · 盘面：由 blockedWhilePaused 在每一条写手上挡（见上面那段注释），这里不重复挡。
+ *   · 界面：按钮文案 / aria-pressed / title 三处一起改口；暂停卡片贴在盘**下面**（不遮盘）。
+ */
 function setPaused(v) {
-  if (v === paused) return;
-  paused = v;
-  if (v) stopClock(); else startClock();
-  el.pause.setAttribute('aria-pressed', String(paused));
-  el.pause.textContent = paused ? '继续' : '暂停';
-  el.pause.title = paused ? '继续 (P)' : '暂停 (P)';
+  if (!game) v = false;
+  const want = !!v && game.status !== 'won';
+  if (want === paused) return paused;
+  paused = want;
+  sim.setPaused(want);
+  if (want) stopClock(); else startClock();
+  el.pause.setAttribute('aria-pressed', String(want));
+  el.pause.textContent = want ? '继续' : '暂停';
+  el.pause.title = want ? '继续 (P)' : '暂停 (P)';
+  el.pauseVeil.hidden = !want;
+  syncStats();
+  return want;
 }
-function togglePause() { setPaused(!paused); }
+function togglePause() { return setPaused(!paused); }
 
 /** 暂停中挡一刀：挡回了什么要写在状态行里，并给台面留一个数得清的证人（keyHits().blocked）。 */
 function blockedWhilePaused(what) {
@@ -380,10 +390,12 @@ function hint() {
  *  赢下去记的是 ms≈0：这一轮要堵的正是这条路。 */
 function adoptFreshBoard() {
   paused = false;
+  sim.setPaused(false);
   baseElapsed = 0;
   el.pause.setAttribute('aria-pressed', 'false');
   el.pause.textContent = '暂停';
   el.pause.title = '暂停 (P)';
+  el.pauseVeil.hidden = true;
   el.winVeil.hidden = true;
 }
 
@@ -538,20 +550,16 @@ $('#btn-new').addEventListener('click', () => begin({ tier: game ? game.puzzle.t
 $('#btn-menu').addEventListener('click', () => { saveNow(); show('menu'); });
 $('#btn-menu-2').addEventListener('click', () => show('menu'));
 $('#btn-again').addEventListener('click', () => begin({ tier: game ? game.puzzle.tier : DEFAULT_TIER }));
-el.pause.addEventListener('click', () => setPaused(!sim.paused));
+// 暂停键只在这里绑一次：之前上面还有一条 `setPaused(!sim.paused)`，两条一起 ⇒ 一次点击切两次，
+// 净效果是"按了没反应"（闸里量的是"点一下 isPaused() 翻真"）。
 el.pauseResume.addEventListener('click', () => setPaused(false));
-el.full.addEventListener('click', toggleFullscreen);
+// #btn-fullscreen 的点击由文件末尾那份 bindFullscreen 绑（它还管 fullscreenchange 回写与 F 键）。
+// 这里再绑一条会把 click 事件当成"根节点"传进 toggleFullscreen(root)，那次调用什么也不会做。
 el.help.addEventListener('click', () => showHelp(el.helpVeil.hidden));
 el.helpClose.addEventListener('click', () => showHelp(false));
 el.helpVeil.addEventListener('click', ev => { if (ev.target === el.helpVeil) showHelp(false); });
 el.resume.addEventListener('click', resumeSaved);
-el.sound.addEventListener('click', () => {
-  const st = setMuted(!sfx.muted);
-  say(st.muted
-    ? `音效已关：AudioContext 状态 ${st.ctx}，静音期间累计建过的振荡器 ${st.osc} 个（不再增长）。`
-    : `音效已开：AudioContext 状态 ${st.ctx}，累计 ${st.osc} 个振荡器。`);
-  syncAll();
-});
+el.sound.addEventListener('click', toggleSound);
 $('#btn-reset').addEventListener('click', () => { Store.reset(); game = null; show('menu'); });
 el.pause.addEventListener('click', togglePause);
 
@@ -562,19 +570,43 @@ window.addEventListener('keydown', ev => {
   keys.by[ev.key] = (keys.by[ev.key] || 0) + 1;
   if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
   const k = ev.key;
+  // Esc 只管一件事：把玩法说明那张卡片关掉。它是模态对话框，关不掉就成了一扇锁着的门，
+  // 所以它排在暂停那道总闸**之前** —— 卡片开着的时候，暂停与否都不该拦它。
+  if (k === 'Escape' && !el.helpVeil.hidden) { showHelp(false); ev.preventDefault(); keys.handled++; return; }
   // 暂停期整体不收玩法键：一条一条地在每个写手里加闸，等于指望下一个按键的人记得加。
   // 放在这一层，将来新加的玩法键默认就被冻住；只放行 P（它就是用来解冻的那一只）。
   // 全屏的 F 走它自己那个 listener（不碰盘面），这里不拦。
   if (paused && k !== 'p' && k !== 'P') { blockedWhilePaused(`「${k}」这一键`); ev.preventDefault(); return; }
+  // 局外（选档页）没有盘面：方向键/摆子/撤销这些玩法键在那一页**什么也不做**。
+  // 以前它们照跑，于是 `game.cursor` 在 game 还是 null 时被读出来 —— 一次 TypeError
+  // 把整段 keydown 打断，页面看上去是"按了没反应"，控制台里却是一条红。
+  const inGame = currentView === 'game' && !!game;
   if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight') {
+    if (!inGame) return;
     moveCursor(k); ev.preventDefault(); keys.handled++;
   } else if (k === ' ' || k === 'Enter') {
+    // 玩法说明开着：不许顺手开局。焦点落在按钮上时让原生 click 走完（"知道了"那一下），
+    // 否则这一次按键什么也不做。
+    if (!el.helpVeil.hidden) { if (!isButtonFocused()) ev.preventDefault(); keys.handled++; return; }
+    if (currentView === 'menu') {
+      // 菜单里：Enter/空格是"开局"。原生 <button> 自己认 Enter/Space（会派发 click），
+      // 所以焦点在某一档上时让它自己走；焦点不在按钮上就开默认档。
+      if (!isButtonFocused()) { begin({ tier: DEFAULT_TIER }); ev.preventDefault(); }
+      keys.handled++;
+      return;
+    }
+    if (!inGame) return;
     cycle(game.cursor); ev.preventDefault(); keys.handled++;
-  } else if (k === 'w' || k === 'W') { place(game.cursor, W); keys.handled++; }
-  else if (k === 'b' || k === 'B') { place(game.cursor, B); keys.handled++; }
-  else if (k === 'x' || k === 'X') { place(game.cursor, E); keys.handled++; }
-  else if (k === 'Backspace' || k === 'Delete') { place(game.cursor, null); keys.handled++; }
-  else if (k === 'z' || k === 'Z') { undo(); keys.handled++; }
+  } else if (k === 'w' || k === 'W') { if (!inGame) return; place(game.cursor, W); keys.handled++; }
+  else if (k === 'b' || k === 'B') { if (!inGame) return; place(game.cursor, B); keys.handled++; }
+  else if (k === 'x' || k === 'X') { if (!inGame) return; place(game.cursor, E); keys.handled++; }
+  else if (k === 'Backspace' || k === 'Delete') { if (!inGame) return; place(game.cursor, null); keys.handled++; }
+  else if (k === 'z' || k === 'Z') { if (!inGame) return; undo(); keys.handled++; }
+  // 下面三颗键是玩法说明里已经写着、代码里却没有的：R 换一局、M 静音、? 玩法说明。
+  // 说明页写着的键必须真的按得动，否则那张卡片就是一张反着的说明书。
+  else if (k === 'r' || k === 'R') { begin({ tier: game ? game.puzzle.tier : DEFAULT_TIER }); keys.handled++; }
+  else if (k === 'm' || k === 'M') { toggleSound(); keys.handled++; }
+  else if (k === '?') { showHelp(el.helpVeil.hidden); keys.handled++; }
   else if (k === 'p' || k === 'P') { togglePause(); ev.preventDefault(); keys.handled++; }
 });
 
@@ -603,7 +635,6 @@ window.addEventListener('pagehide', saveNow);
 
 renderMenu();
 startLoop();
-syncFullscreen();
 const deep = parseHash();
 if (deep && tierOf(deep.tier) && deep.seed >= 1) begin({ tier: deep.tier, seed: deep.seed });
 
@@ -621,7 +652,7 @@ window.dosun = {
   dropped: () => ({ lastDropped, key: STORE_KEY }),
   reducedMotion: () => (rmq ? rmq.matches : null),
   audio: () => sfx.state(),
-  fullscreen: fullscreenActive,
+  fullscreen: () => !!fsElement(),
   state: () => (game ? {
     ...game.counts(),
     moves: game.moves, cursor: game.cursor, status: game.status, tier: game.puzzle.tier, seed: game.puzzle.seed,
@@ -727,7 +758,8 @@ function bindFullscreen(btn) {
 }
 
 function bootFullscreen() {
-  const btn = document.getElementById("btn-fullscreen");
+  // 按钮从 el 表里取：那张表是这张页面的 id 唯一清单（少了哪一条就是一条引不着的线）。
+  const btn = el.full;
   if (!btn) {
     // 按钮被谁删掉了？在控制台喊出来，别让这个坑静默地烂在下一棒手里。
     console.warn('[fullscreen] index.html 里找不到 #' + "btn-fullscreen" + '，全屏开关没有入口');
