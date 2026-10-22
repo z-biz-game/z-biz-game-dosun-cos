@@ -32,7 +32,7 @@ const skip = (label, why) => console.log(`  SKIP ${label} · ${why}`);
 
 const README = read('README.md');
 const DESIGN = read('DESIGN.md');
-const DOCS = README + '\n' + DESIGN;
+const FACES = [['README.md', README], ['DESIGN.md', DESIGN], ['deliverable.md', read('deliverable.md')]]; const DOCS = FACES.map((f) => f[1]).join('\n'); // 文档面只在这一处点名：D9/D18/D21/D22 都从这份名单取，交付报告那份不许再被漏掉
 const CI = read('.github/workflows/ci.yml');
 const VERIFY = read('tools/verify.sh');
 const PKG = JSON.parse(read('package.json'));
@@ -410,7 +410,7 @@ ok(!!lineSrc && lineGroups >= 8 && !!numDoc && +numDoc[1] === lineGroups,
 // 表行由 D1 逐格钉住，不在这里重复；剩下的散文里凡是写着"实测 + 一个数"的句子，
 // 都得在同一句里给出复跑的东西（一条命令或一个文件），否则那句话就是"抄来的形容词"。
 const bare = [];
-for (const [name, src] of [['README.md', README], ['DESIGN.md', DESIGN]]) {
+for (const [name, src] of FACES) {
   for (const [i, line] of src.split('\n').entries()) {
     if (/^\s*\|/.test(line)) continue;
     if (!/实测/.test(line) || !/\d/.test(line)) continue;
@@ -508,7 +508,7 @@ const missAnchor = (path, from, to, rawName) => {
   return '';
 };
 const bareList = [], anchorList = [];
-for (const [doc, raw] of [['README.md', README], ['DESIGN.md', DESIGN]]) {
+for (const [doc, raw] of FACES) {
   const src = raw.split('\n').filter(l => !/^\| K\d+ \| /.test(l)).join('\n');
   let last = null;
   for (const m of src.matchAll(WALK)) {

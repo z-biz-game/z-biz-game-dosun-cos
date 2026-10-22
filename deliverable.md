@@ -8,8 +8,8 @@
 | 基线 | `9b99980`（"Merge branch 'main' of github.com:z-biz-game/z-biz-game-dosun-cos"） |
 | 修复提交 | `ec70663`（"fix(dosun): 修好整局打不开的并线破坏 —— 重复声明、丢掉的 el 键、重复 id 与重复接线"）<br>`d72c589`（"fix(dosun): 补回并线丢掉的 Store.data 出口（原样存档视图）"） |
 | 交付物提交 | 本文件所在的那一次提交 |
-| 基线状态 | **整局不可玩**：`js/main.js` 是 SyntaxError，ES module 根本不加载 ⇒ 页面一片空白；node 侧 doctest 2/68 红、deploy-set 2 项红、sabotage 8/19 红；浏览器腿连页面都开不出来 |
-| 修完状态 | 语法门 `check OK`；node 侧 17 + 26 + 24 + 46 + 42 + 19 + 68 = **242 条断言 0 失败**；浏览器闸 root 与 prefix 两种形态各 5 份报告、每形态 297 条、合计 594 条 **0 失败**；部署集 32 条引用 / 51 行 0 失败；部署集自检 `rc=0`；整闸 `=== ALL GREEN ===`（`VERIFY_RC=0`） |
+| 基线状态 | **整局不可玩**：`js/main.js` 是 SyntaxError，ES module 根本不加载 ⇒ 页面一片空白；node 侧 doctest 2/68 红、deploy-set 2 项红、sabotage 8/19 红（那一轮台账 7 把刀 19 条）；浏览器腿连页面都开不出来 |
+| 修完状态 | 语法门 `check OK`；node 侧 17 + 26 + 24 + 46 + 42 + 23 + 68 = **246 条断言 0 失败**；浏览器闸 root 与 prefix 两种形态各 5 份报告、每形态 297 条、合计 594 条 **0 失败**；部署集 32 条引用 / 51 行 0 失败；部署集自检 `rc=0`；整闸 `=== ALL GREEN ===`（`VERIFY_RC=0`） |
 
 ### 整局不可玩的根因
 
@@ -90,34 +90,34 @@ V8 先报撞名，所以下面的第 2、3 条要等第 1 条被拿掉才露出�
 
 ## 3. 文档行号钉的重钉清单
 
-| 位置 | 旧钉 | 新钉 | 钉到的东西 |
+| 位置 | 旧钉（改动前那一版里的行号，写成「文件 行号」不带冒号：`文件:行号` 那条文法归本腿逐条开现在的文件，而旧版不在盘上，核不到） | 新钉（现在的引用，逐条开文件核过） | 钉到的东西 |
 |---|---|---|---|
-| `README.md:4` | `index.html:71` | `index.html:80` | `<canvas id="board">` |
-| `README.md:6` | `index.html:27-31`、`js/engine/rules.js:19-21` | `index.html:38-39`、`js/engine/rules.js:80-90`、`js/engine/rules.js:100-102` | 菜单里铁球/黑格那两句 + 判据的 R1 与 R3 源码 |
-| `README.md:9` | `index.html:31`、`:99` | `index.html:39`、`:148` | 「气球停在铁球下面不算浮起来」+ 帮助卡 R2 浮 |
-| `README.md:14` | `js/main.js:26-31`、`index.html:125` | `js/main.js:36-39`、`index.html:167` | `measuredLine` + 页脚那句点名出处 |
-| `README.md:33` | `index.html:88-97` | `index.html:106-117` | 未定/撤销/换一局/重摆四个按钮 |
-| `README.md:37` | `js/main.js:45` | `js/save.js:141` | `r.ms < prev.ms`（**实际在 save.js，不在 main.js**） |
-| `README.md:39` | `js/main.js:389` | `js/main.js:566` | `keydown` 总闸 |
-| `README.md:40` | `js/main.js:146` | `js/main.js:295` | `blockedWhilePaused()` |
-| `README.md:43` | `js/main.js:233` | `js/main.js:391` | `adoptFreshBoard()` |
-| `README.md:158` | `index.html:40-43` | `index.html:49-53` | 选档页那段「最高档的读数已经把天花板指出来了」 |
-| `README.md:161` | `js/main.js:30`、`js/main.js:332` | `js/main.js:36`、`js/main.js:462` | `measuredLine` + `TIER_NOTE` |
-| `README.md:37` / `DESIGN.md:132` | `js/save.js:129` | `js/save.js:141` | 补 `Store.data` 之后行号上移 |
-| `DESIGN.md:21` | `index.html:31`、`index.html:112` | `index.html:39`、`index.html:60` | 菜单那句 + 判据 R2 浮那行 |
-| `DESIGN.md:118` | `index.html:40-43` | `index.html:49-53` | 同上 |
-| `DESIGN.md:120` | `js/main.js:30` | `js/main.js:36` | `measuredLine` |
-| `DESIGN.md:135` | `js/main.js:146` | `js/main.js:295` | `blockedWhilePaused()` |
-| `DESIGN.md:136` | `js/main.js:389` | `js/main.js:566` | `keydown` |
-| `DESIGN.md:151` | `js/main.js:233` | `js/main.js:391` | `adoptFreshBoard()` |
-| `DESIGN.md:152` | `js/main.js:249`、`js/main.js:269` | `js/main.js:407`、`js/main.js:430` | 两条分支各自的 `game = new Game(…)` |
-| `DESIGN.md:155` | `js/main.js:261` | `js/main.js:424` | 「没出货」那条出口 |
-| `DESIGN.md:259` | `js/main.js:223` | `js/main.js:381` | `hint()` |
-| `DESIGN.md:262` | `js/main.js:369-374` | `js/main.js:139` | `setMuted()`（音效那条整段重写） |
-| `DESIGN.md:267` | `js/main.js:33-48` | `js/main.js:44-49`、`js/save.js:136` | 存档口 + `setGame`（续局那条整段重写） |
+| `README.md:4` | `index.html 71` | `index.html:80` | `<canvas id="board">` |
+| `README.md:6` | `index.html 27-31`、`js/engine/rules.js 19-21` | `index.html:38-39`、`js/engine/rules.js:80-90`、`js/engine/rules.js:100-102` | 菜单里铁球/黑格那两句 + 判据的 R1 与 R3 源码 |
+| `README.md:9` | `index.html 31`、`index.html 99` | `index.html:39`、`:148` | 「气球停在铁球下面不算浮起来」+ 帮助卡 R2 浮 |
+| `README.md:14` | `js/main.js 26-31`、`index.html 125` | `js/main.js:36-39`、`index.html:167` | `measuredLine` + 页脚那句点名出处 |
+| `README.md:33` | `index.html 88-97` | `index.html:106-117` | 未定/撤销/换一局/重摆四个按钮 |
+| `README.md:37` | `js/main.js 45` | `js/save.js:141` | `r.ms < prev.ms`（**实际在 save.js，不在 main.js**） |
+| `README.md:39` | `js/main.js 389` | `js/main.js:566` | `keydown` 总闸 |
+| `README.md:40` | `js/main.js 146` | `js/main.js:295` | `blockedWhilePaused()` |
+| `README.md:43` | `js/main.js 233` | `js/main.js:391` | `adoptFreshBoard()` |
+| `README.md:158` | `index.html 40-43` | `index.html:49-53` | 选档页那段「最高档的读数已经把天花板指出来了」 |
+| `README.md:161` | `js/main.js 30`、`js/main.js 332` | `js/main.js:36`、`js/main.js:462` | `measuredLine` + `TIER_NOTE` |
+| `README.md:37` / `DESIGN.md:132` | `js/save.js 129` | `js/save.js:141` | 补 `Store.data` 之后行号上移 |
+| `DESIGN.md:21` | `index.html 31`、`index.html 112` | `index.html:39`、`index.html:60` | 菜单那句 + 判据 R2 浮那行 |
+| `DESIGN.md:118` | `index.html 40-43` | `index.html:49-53` | 同上 |
+| `DESIGN.md:120` | `js/main.js 30` | `js/main.js:36` | `measuredLine` |
+| `DESIGN.md:135` | `js/main.js 146` | `js/main.js:295` | `blockedWhilePaused()` |
+| `DESIGN.md:136` | `js/main.js 389` | `js/main.js:566` | `keydown` |
+| `DESIGN.md:151` | `js/main.js 233` | `js/main.js:391` | `adoptFreshBoard()` |
+| `DESIGN.md:152` | `js/main.js 249`、`js/main.js 269` | `js/main.js:407`、`js/main.js:430` | 两条分支各自的 `game = new Game(…)` |
+| `DESIGN.md:155` | `js/main.js 261` | `js/main.js:424` | 「没出货」那条出口 |
+| `DESIGN.md:259` | `js/main.js 223` | `js/main.js:381` | `hint()` |
+| `DESIGN.md:262` | `js/main.js 369-374` | `js/main.js:139` | `setMuted()`（音效那条整段重写） |
+| `DESIGN.md:267` | `js/main.js 33-48` | `js/main.js:44-49`、`js/save.js:136` | 存档口 + `setGame`（续局那条整段重写） |
 | `DESIGN.md:271` | — | `js/main.js:516` | 触屏三条真事件路（该条整段重写） |
 | `DESIGN.md:233` | `62 断言` | `68 断言` | doctest 自己的条数 |
-| `README.md:226` / `README.md:234` | `EXPECT_CHECKS=29` / `EXPECT_ROWS=47` | `32` / `51` | 部署集闸钉的实数 |
+| `README.md:228` / `README.md:236` | `EXPECT_CHECKS=29` / `EXPECT_ROWS=47` | `32` / `51` | 部署集闸钉的实数 |
 
 ## 4. 验收命令与原样输出
 
@@ -128,6 +128,8 @@ check OK
 rc=0
 
 # ② node 侧整闸（= npm test）
+# 这一段是本轮把 deliverable.md 接进 doctest 的文档面（D9/D18/D21/D22 同源一份名单）之后重跑的：
+# 台账多了 K8/K9 两把只打在 deliverable.md 上的刀，所以 sabotage 从 19 条变成 23 条。
 $ bash tools/verify.sh
 ...
   rule-test: PASS（17 条断言）
@@ -135,9 +137,9 @@ $ bash tools/verify.sh
   pencil-test: PASS（24 条断言）
   golden-test: PASS（46 条断言）
   generator-probe: PASS（42 条断言）
-  sabotage: PASS（19 条断言）
+  sabotage: PASS（23 条断言）
   doctest: PASS（68 条断言）
-gate-rows（本轮每条闸自己报的条数）：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 19 doctest 68
+gate-rows（本轮每条闸自己报的条数）：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 23 doctest 68
 logic: PASS（闸：rule-test counter-test pencil-test golden-test generator-probe sabotage doctest）
 === deploy-set ===
 部署集：32 条引用（含 3 张位图尺寸核对），失败 0 项
@@ -199,7 +201,7 @@ VERIFY_RC=0
 | `index.html` 重复 id | `id="btn-pause"` 出现两次 | 无重复 | 并线前就有 |
 | `el` 表条数 | 22 条，缺 9 个键；其中 `btn-help` 在页面里根本不存在 | 31 条，无悬挂引用 | 并线前就有 |
 | `tools/doctest.mjs` | **2/68 红**（D9 行号漂 7 处、D22 锚点漂 3 处） | 68/68 绿 | 并线前就有（本轮一并重钉） |
-| `tools/sabotage.mjs` | **8/19 红**（因为它复制的副本里 doctest 本来就红，K1–K7 每把刀都「越界红了」） | 19/19 绿 | 并线前就有 |
+| `tools/sabotage.mjs` | **8/19 红**（因为它复制的副本里 doctest 本来就红，那一轮的 K1–K7 每把刀都「越界红了」） | 那一轮 19/19 绿（本轮台账加到 9 把刀、23 条，见第 4 节 ②） | 并线前就有 |
 | `tools/deploy-set.mjs` | **2 项红**（钉 29 / 48 vs 实 35 / 54） | 32 / 51 绿 | 并线前就有（实数钉随改动更新，强度不变） |
 | 浏览器腿 `play` 腿 | 页面都开不出来（模块不加载），腿跑不到断言 | 84 条 0 失败 | 本轮修复 |
 

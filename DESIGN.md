@@ -231,7 +231,7 @@
 | `npm run golden` | 官方夹具 | 46 断言 | 页面/引擎/夹具三方同一份题面与答案 |
 | `npm run probe` | 出题台阶 | 42 断言 | liar=0、打架=0、反空转、贴回对表（`tools/generator-probe.mjs:73-109`） |
 | `npm run doctest` | 文档对回代码 | 68 断言 | 解析不到就红；名单/形状/现值只有一份（`tools/doctest.mjs`） |
-| `npm run sabotage` | 破坏试验台账（刀只打在临时副本） | 19 断言 | 每一把刀都必须把 doctest 弄红并点名，没红就整条判红（`tools/sabotage.mjs`） |
+| `npm run sabotage` | 破坏试验台账（刀只打在临时副本） | 23 断言 | 每一把刀都必须把 doctest 弄红并点名，没红就整条判红（`tools/sabotage.mjs`） |
 | `npm test` | 上面七条串起来，doctest 压轴 | rc=0 | `tools/verify.sh:31`、`:57` |
 | `npm run verify` | 真 Chrome + CDP，两种 URL 形态（CI），三种（本地带 `BASE_URL`）；收尾再跑一遍产物闸 | 每种形态 297 断言，rc=0 | 条数逐腿、逐形态相同（`tools/verify.sh:318`）、部署集那两步（`:64-66`）、`exit $FAILED`（`:416`） |
 | `npm run selftest` | 阴性自证 | rc=1 | 五份报告各点名吃下一条 planted（`tools/verify.sh:383-410`） |
