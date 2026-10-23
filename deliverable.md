@@ -130,7 +130,7 @@ rc=0
 # ② node 侧整闸（= npm test）
 # 这一段是本轮把 deliverable.md 接进 doctest 的文档面（D9/D18/D21/D22 同源一份名单）之后重跑的：
 # 台账多了 K8/K9 两把只打在 deliverable.md 上的刀，所以那一轮 sabotage 从 19 条变成 23 条；
-# 本轮再加 K10 ⇒ 现跑 25 条（每把刀自己出 S3 与 S3b 两格，加一把刀就是两格）。
+# 本轮再加 K10 ⇒ 现跑 25 条：台账里每把各出 S3 与 S3b 两格，所以这条数跟着表里的把数走。
 $ bash tools/verify.sh
 ...
   rule-test: PASS（17 条断言）
