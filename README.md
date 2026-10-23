@@ -62,7 +62,7 @@ npm run selftest     # → rc=1，五份报告各点名吃下一条种下的错�
 - **逻辑闸 `npm test`**：七道，名单只有一份——`tools/verify.sh:31` 的 `GATES`，`doctest` 排在**最后**
   是刻意的：它读前面每条闸本轮自己打印的条数（`tools/verify.sh:44-48` 把每条闸的 stdout 落到
   `_tmp-verify-logic/<gate>.log` 并写进 `_tmp-verify-logic/gate-rows.txt`）。
-  逻辑闸本轮合计 246 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 23 doctest 68
+  逻辑闸本轮合计 247 条断言全绿：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 23 doctest 69
   那一句里的七个数逐个对表本轮 manifest（`tools/doctest.mjs` 的 `D19`；doctest 自己那一个由 `D14c` 对），**不是手抄的**。
   `npm test` **不跑浏览器腿**，并且把这件事打印出来（`tools/verify.sh:69` 的 `browser: SKIP`），
   浏览器闸走 `npm run verify` / CI 的 `browser` job。
@@ -197,6 +197,7 @@ npm run selftest     # → rc=1，五份报告各点名吃下一条种下的错�
 | K7 | 有人把新局重置裸写回 `begin()` 里 | `js/main.js` | `  const spec = tierFor(tier);` | `  paused = false; const spec = tierFor(tier);` | `D20 新局重置只落在` | `node tools/doctest.mjs` | 1 |
 | K8 | 交付报告那条指认的名字漂到隔壁（这一族的刀只有三份文档都被读进来才会红） | `deliverable.md` | `inGame` | `inGameX` | `D22 每一处指认的名字` | `node tools/doctest.mjs` | 1 |
 | K9 | 交付报告里省掉文件名的续引漂出文件外（同上：那份文档没被读，这一刀就打空） | `deliverable.md` | `:148` | `:999999` | `D21 每一条裸续引都借到` | `node tools/doctest.mjs` | 1 |
+| K10 | 表里加了一把刀、散文那句把数没回填（读文档的人少看见一把，而从前没有任何一道闸要求它） | `README.md` | `十把刀各点一族` | `九把刀各点一族` | `D23 面里的把数抄本` | `node tools/doctest.mjs` | 1 |
 
 K1、K2 是上一轮那条车道在 scratch 里做过、但没留在树上的两次试验（当时改的是同一个数字、同一句话）；
 K3、K4 打在代码侧与接线侧的现值上；K5、K6、K7 打在**本轮真的发生过**的三类坏上——
@@ -204,7 +205,7 @@ K3、K4 打在代码侧与接线侧的现值上；K5、K6、K7 打在**本轮真
 老 `D9` 一声不响（现在它还会把指到空行、整行只剩块闭合符的引用判红，K5 打的就是这一条）；
 加一条 `pause` 腿时 `D3` 先红后绿，K6 就是那一类"形状那几个数被抄少一条"；
 把新局重置往 `begin()` 头上一贴（第一版就是这么写的，它顺带把"没出货"那条出口的旧盘也解冻清零），
-K7 打的就是这一类裸写回来的重置。九把刀各点一族，`tools/sabotage.mjs` 逐条打印它命中的 FAIL 行原文。
+K7 打的就是这一类裸写回来的重置。十把刀各点一族，`tools/sabotage.mjs` 逐条打印它命中的 FAIL 行原文。
 
 ## 上线的到底是哪一批文件
 

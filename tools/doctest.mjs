@@ -554,6 +554,36 @@ const KNIFE22 = anchorList.length ? missAnchor(anchorList[0][1], anchorList[0][2
 ok(!!KNIFE22, 'D22b 这一格自己带一把指错名字的刀：把第一条指认的名字换成仓里不存在的标识符，必须报回未命中',
   KNIFE22 || '换成假名字之后仍然不红——整词比对根本没跑');
 
+// ---- D23 台账的把数抄本：文档散文里那句「N 把刀」必须等于 README 台账表现数的刀数 ----
+// 刀是按 README 那张表声明的（tools/sabotage.mjs 就是从这张表里 parse 出刀），表是正本；
+// 散文里的把数是抄本。加一把刀只动表、不动散文，读文档的人就少看见一把——上一轮 K8/K9 落进表里时，
+// 散文那句「九把刀」正是靠人手回填的，没有任何一道闸要求它。
+// 台账行本身不算抄本：那是声明，而且针与「改成」两格里天生带着错的把数（与 hits() 的排除同一条规矩）。
+// 带「那一轮」的行是历史读数，留在散文里、不挂这台闸的尺子。
+const KNIFE_ROWS = [...new Set([...README.matchAll(/^\| (K\d+) \|/gm)].map((m) => m[1]))];
+const CN23 = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+const num23 = (s) => /^\d+$/.test(s) ? +s
+  : s === '十' ? 10 : s[0] === '十' ? 10 + (CN23[s[1]] || 0)
+  : s.endsWith('十') ? (CN23[s[0]] || 0) * 10 : (CN23[s] || NaN);
+const knifeCopies = [];
+for (const [f, txt] of FACES) {
+  for (const line of txt.split('\n')) {
+    if (/^\| K\d+ \|/.test(line)) continue;
+    // 历史读数按"这一句前面写了那一轮"来认，不按整行：deliverable 那张表的同一行里
+    // 既有「那一轮 19/19 绿」也有「本轮台账加到 9 把刀」，整行豁免会把现役抄本一起放走。
+    for (const m of line.matchAll(/(?<![每任何那这第把某])([0-9]+|[一二三四五六七八九十]+) ?把刀/g)) {
+      const before = line.slice(Math.max(0, m.index - 16), m.index);
+      if (before.includes('那一轮') || before.includes('上一轮')) continue;
+      knifeCopies.push({ where: `${f}「${m[0]}」`, n: num23(m[1]) });
+    }
+  }
+}
+const knifeStale = knifeCopies.filter((c) => c.n !== KNIFE_ROWS.length);
+ok(knifeStale.length === 0 && knifeCopies.length >= 2,
+  `D23 面里的把数抄本（${knifeCopies.length} 处）每一处都 == 台账表现数的 ${KNIFE_ROWS.length} 把`,
+  knifeStale.length ? `不等：${knifeStale.map((c) => `${c.where}=${c.n}`).join('，')}`
+    : `${knifeCopies.map((c) => `${c.where}=${c.n}`).join(' / ')} · 少于 2 处就是把这条文法改哑了`);
+
 // ---- D14c 末项就是本闸本轮真打印的条数（这一条自己也算在内，所以放在最后一次 ok）----
 const SELF = rows + 1;
 ok(!!sumM && di >= 0 && terms[di][1] === SELF, 'D14c 文档抄的 doctest 条数等于本轮实测（含这一条）',
