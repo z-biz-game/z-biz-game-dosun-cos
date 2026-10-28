@@ -44,7 +44,7 @@ V8 先报撞名，所以下面的第 2、3 条要等第 1 条被拿掉才露出�
 |---|---|---|
 | 1 | 两份 `function setPaused` 并存 ⇒ ES module 顶层同名声明直接 SyntaxError ⇒ 整局打不开 | 合成一份（`js/main.js:278`），能力取两边并集：停表（`stopClock` 落账 + ticker 停）+ 冻仿真（`sim.setPaused`）+ 按钮三处改口（文案/`aria-pressed`/`title`）+ 暂停卡片显隐 + 读数刷新 |
 | 2 | `el` 表被截断，缺 9 个键 ⇒ 模块一加载就 `undefined.xxx` TypeError | 补齐 9 条（`js/main.js:26-32`），并把「表必须与 index.html 一一对应」写在注释里 |
-| 3 | `el.help` 指向的 `#btn-help` 在 `index.html` 里**根本不存在** ⇒ 教学页没有开页入口，玩法说明不可达 | 顶栏补一颗 `#btn-help`（`index.html:25`），接到 `showHelp` |
+| 3 | `el.help` 指向的 `#btn-help` 在 `index.html` 里**根本不存在** ⇒ 教学页没有开页入口，玩法说明不可达 | 顶栏补一颗 `#btn-help`（`index.html:28`），接到 `showHelp` |
 | 4 | `#btn-pause` 在顶栏与牌桌 `.acts` **各有一颗**（重复 id）⇒ `getElementById` 只认先出现的那颗，另一颗成死按钮；闸还数「页面上有几只写着暂停/继续的按钮」 | 牌桌那颗删掉，只留顶栏（`index.html:27`）。牌桌那排换成「提示 / 撤销 / 换一局 / 重摆 / 回选档」 |
 | 5 | 暂停键被绑两次（`setPaused(!sim.paused)` + `togglePause`）⇒ 一次点击切两次，净效果是「按了没反应」 | 只留一条（`js/main.js:564`） |
 | 6 | 两份 `toggleFullscreen`：134 行无参版、667 行带 root 版。后者胜 ⇒ click 事件被当成 root 传进去，全屏按了没反应；且 `init` 的 `syncFullscreen()` 因 `el.full` 未定义直接 TypeError | 删掉第一套（`fullscreenActive` / `syncFullscreen` / 无参 `toggleFullscreen` 及其两个 listener），只留文件末尾那份 `bindFullscreen`（特性探测三套 API + `fullscreenchange` 回写 + F 键 + 不支持时禁用并说明原因） |
@@ -117,7 +117,7 @@ V8 先报撞名，所以下面的第 2、3 条要等第 1 条被拿掉才露出�
 | `DESIGN.md:267` | `js/main.js 33-48` | `js/main.js:44-49`、`js/save.js:136` | 存档口 + `setGame`（续局那条整段重写） |
 | `DESIGN.md:271` | — | `js/main.js:516` | 触屏三条真事件路（该条整段重写） |
 | `DESIGN.md:233` | `62 断言` | `68 断言` | doctest 自己的条数 |
-| `README.md:229` / `README.md:237` | `EXPECT_CHECKS=29` / `EXPECT_ROWS=47` | `32` / `51` | 部署集闸钉的实数 |
+| `README.md:229` / `README.md:237` | `EXPECT_CHECKS=29` / `EXPECT_ROWS=47` | `34` / `53`（2026-10-25 art 批次后重钉；这一波先从 29/47 到 32/51） | 部署集闸钉的实数 |
 
 ## 4. 验收命令与原样输出
 
@@ -143,8 +143,8 @@ $ bash tools/verify.sh
 gate-rows（本轮每条闸自己报的条数）：rule-test 17 counter-test 26 pencil-test 24 golden-test 46 generator-probe 42 sabotage 25 doctest 69
 logic: PASS（闸：rule-test counter-test pencil-test golden-test generator-probe sabotage doctest）
 === deploy-set ===
-部署集：32 条引用（含 3 张位图尺寸核对），失败 0 项
-rows: 51 fail: 0
+部署集：34 条引用（含 3 张位图尺寸核对），失败 0 项
+rows: 53 fail: 0
 DS_SELFTEST rc=0（0=每一刀都按预期发力、阴性对照按预期不发力）
 browser: SKIP（npm test 只跑逻辑闸；浏览器闸走 BROWSER=1 / npm run verify）
 === ALL GREEN ===
@@ -184,7 +184,7 @@ VERIFY_RC=0
 |---|---|---|---|
 | 选档页那颗续局按钮 | 「继续上一局」 | 「回到上一局」 | 浏览器腿断言「页面上只能有一只写着暂停/继续的按钮」（`[...document.querySelectorAll('button')].filter(b=>/暂停|继续/.test(b.textContent))` 只认暂停开关那一只）。功能没删，只是改了口 |
 | 暂停卡片里那颗按钮 | 「继续（P）」 | 「接着摆（P）」 | 同上 |
-| 顶栏 | 没有玩法说明入口 | 多一颗 `?` 按钮（`index.html:25`） | `el.help` 早就指向 `#btn-help`，但页面里没有这颗按钮 ⇒ 教学页不可达 |
+| 顶栏 | 没有玩法说明入口 | 多一颗 `?` 按钮（`index.html:28`） | `el.help` 早就指向 `#btn-help`，但页面里没有这颗按钮 ⇒ 教学页不可达 |
 | 键位 | `P` 暂停 | 另加 `R` 换一局、`M` 静音、`?` 玩法说明、`Esc` 关闭说明 | 说明页本来就写着这几颗键，代码里没有 |
 | 选档页按方向键 / `W` `B` `X` / `Z` | 控制台一条 TypeError，页面看着像没反应 | 什么也不做（局外没有盘面） | 原来读的是还为 null 的 `game.cursor` |
 | 选档页按 `Enter` / 空格 | 同样 TypeError | 开默认档（焦点在某一档按钮上时走那颗按钮） | 说明页写着「Enter/空格 在菜单里开局」 |
