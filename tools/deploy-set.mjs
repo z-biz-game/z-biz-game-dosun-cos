@@ -246,7 +246,10 @@ for (let k = 0; k < refs.length; k += 1) {
     continue;
   }
   if (r.endsWith('.css')) {
-    for (const m of stripComments(text, true).matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) {
+    // data: URI 的载荷里可以再嵌 url(...)——内联 SVG 的 filter='url(%23n)' 就是这形状（studio.css
+    // 那张噪声纹理）。它不是站内文件，挖掉整段再扫；不挖的话 %23n 会被当成缺了一个产物。
+    const css = stripComments(text, true).replace(/url\(\s*(['"]?)data:[\s\S]*?\1\s*\)/g, 'url(data:)');
+    for (const m of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) {
       push(r, m[1], dirOf(r));
     }
     continue;

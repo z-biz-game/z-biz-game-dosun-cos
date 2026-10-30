@@ -200,19 +200,24 @@ if (!knife('X9 ci.yml 不跑闸', ['W4'], (dir) => {
     'run: node tools/deploy-set-removed.mjs');
 })) bad += 1;
 
-// X10 阴性对照：写在注释里的假路径**不能**算引用。它同时钉住"条数没漂"——散文被当成引用的时候
-// 条数会多，而下一次顶歪数字的人看到的 FAIL 与自己的改动毫无关系。
+// X10 阴性对照：写在注释里的假路径、以及 data: URI 载荷里嵌的 url() **不能**算引用。后者是内联 SVG
+// 的 filter='url(%23n)'（studio.css 那张噪声纹理），曾经被当成缺了一个叫 %23n 的产物。它同时钉住
+// "条数没漂"——非引用的文本被算进来的时候条数会多，而下一次顶歪数字的人看到的 FAIL 与自己的改动
+// 毫无关系。
 {
   const dir = fresh();
   write(dir, jsFile, read(dir, jsFile) +
     "\n// ds-probe: './prose-only.png' 与 '../assets/textures/nope.png' 都只活在注释里。\n");
+  write(dir, cssFile, read(dir, cssFile) +
+    "\n#ds-probe{background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E" +
+    "%3Cfilter id='n'/%3E%3Crect filter='url(%23n)'/%3E%3C/svg%3E\")}\n");
   const res = gate(dir);
   if (res.rc !== 0 || res.checks !== baseRun.checks || res.rows !== baseRun.rows) {
-    line(`X10 注释里的假路径 INERT-CLAIM · rc=${res.rc} 条数=${res.checks}（应 ${baseRun.checks}）rows=${res.rows}（应 ${baseRun.rows}）`);
+    line(`X10 散文与 data: URI 里的假路径 INERT-CLAIM · rc=${res.rc} 条数=${res.checks}（应 ${baseRun.checks}）rows=${res.rows}（应 ${baseRun.rows}）`);
     for (const l of res.fails.slice(0, 4)) line('      ' + l.trim());
     bad += 1;
   } else {
-    line(`X10 注释里的假路径 OK · 散文没被算成引用，条数仍 ${baseRun.checks}、rows 仍 ${baseRun.rows}`);
+    line(`X10 散文与 data: URI 里的假路径 OK · 两者都没被算成引用，条数仍 ${baseRun.checks}、rows 仍 ${baseRun.rows}`);
   }
 }
 
